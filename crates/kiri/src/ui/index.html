@@ -5278,7 +5278,7 @@ setInterval(() => {
 }, 2000);
 
 // Feedback goes to the repo's GitHub issues; the app's "open" handler allows exactly this address.
-const FEEDBACK_URL = "https://github.com/libracoder/kiri/issues/new";
+const FEEDBACK_URL = "https://github.com/sguzman/caskel/issues/new";
 
 /* The VM's memory: under 1 GB in MB, so an idle VM doesn't read as "0.2". */
 const memText = (mib) => (mib < 1024 ? `${Math.round(mib)} MB` : `${(mib / 1024).toFixed(1)} GB`);
@@ -6287,10 +6287,10 @@ function closable(el, close) {
   el.querySelector(".tclose").addEventListener("click", (ev) => { ev.stopPropagation(); close(); });
 }
 
-/* Star Kiri, asked once ever: the first time something works (a container
+/* Star Caskel, asked once ever: the first time something works (a container
    started, a pull done, a share link live, Kubernetes up), a card a moment
    after that toast. ui.json keeps starAsked, so it never comes back. */
-const STAR_URL = "https://github.com/libracoder/kiri";
+const STAR_URL = "https://github.com/sguzman/caskel";
 const STAR_IC = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.6l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5-4.9-4.5 6.6-.8Z"/></svg>`;
 let prefsIn = false, starTimer = 0;
 function starMoment(text) {
