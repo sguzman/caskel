@@ -29,6 +29,9 @@ rustPlatform.buildRustPackage {
   postInstall = ''
     test -x "$out/bin/kiri"
     test -x "$out/bin/kiri-init"
+    # Opt-in service template; not registered or activated by this build.
+    install -Dm444 ${./systemd/kiri.service} "$out/lib/systemd/system/kiri.service"
+    test -f "$out/lib/systemd/system/kiri.service"
   '';
 
   meta = with lib; {

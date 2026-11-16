@@ -58,17 +58,16 @@ compile. It does not run privileged container/integration tests. The
 optional Linux GUI (GTK/WebKit) is also **not** included in this minimal
 package.
 
-## Safe rollout (later)
+## Optional Arch/EndeavourOS systemd integration
 
-Building is not installing a service. After the Nix package is verified,
-we will add a separate, explicit **Arch/EndeavourOS systemd integration**
-pointing to a stable Nix profile path; it will use Kiri's own Unix socket
-`/run/kiri/docker.sock` and will not replace Docker's default socket.
-We will test that integration before running any real container workloads.
+The Nix package includes a **disabled, opt-in** service template. See
+[`nix/systemd/README.md`](systemd/README.md) for a dedicated root-owned Nix
+profile, explicit `systemctl link`, safe startup, and complete reversible
+removal instructions. It uses the pre-existing `docker` group rather than
+creating a new privileged `kiri` group. Docker's socket remains untouched.
 
-Members of the `kiri` group are effectively root-equivalent; group
-membership must be a conscious opt-in. Container state cleanup must remain
-separate from removing the package.
+**Do not start Kiri before reviewing its networking and host access.**
+Container state cleanup is separate from removing the package.
 
 ## Fork branching rules
 
