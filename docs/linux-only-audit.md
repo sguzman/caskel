@@ -96,3 +96,18 @@ The GTK window now requests the desktop's generic application icon and
 advertises the `caskel` application identifier. This neutral placeholder
 is not a final logo or a completed review of embedded HTML/SVG UI branding.
 The original Apache-2.0 LICENSE/NOTICE and GPL kernel sources were preserved.
+
+## Visible Linux UI translation identity
+
+The 37 locale catalogs use stable English strings as lookup keys. The Linux
+page and Rust UI now replace the user-visible product proper name **Kiri**
+with **Caskel** at render time rather than renaming every key or discarding
+the translations. The legacy source strings, including placeholders, remain
+stable for upstream ports. Linux-specific tests cover the Spanish page and
+English, Spanish and Japanese native translations.
+
+Never pretend external Kiri Cloud or Kiri Share is a Caskel-operated service.
+The brand substitution explicitly preserves those provider names, as well as
+protocol variables `KIRI_*`, legacy paths (`~/.kiri`, `/run/kiri`) and
+`*.kiri.local` names that are not migrated yet. These are compatibility
+interfaces, not Caskel's public marketing name.
