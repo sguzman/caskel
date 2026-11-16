@@ -40,8 +40,6 @@ mod flavor;
 mod images;
 #[cfg(unix)]
 mod guest;
-#[cfg(target_os = "linux")]
-mod hostaccess;
 #[cfg(unix)]
 mod k8s;
 // kubectl's own file, which `kiri k8s` puts its context in.
@@ -103,12 +101,6 @@ fn main() -> ExitCode {
         Some("bridge") => bridge::run(&args[1..]),
         #[cfg(target_os = "linux")]
         Some("hostrelay") => hostrelay::run(),
-        // Linux hosts: what the window's onboarding needs root for (through pkexec).
-        #[cfg(target_os = "linux")]
-        Some("host-access") => match hostaccess::run(&args[1..]) {
-            Ok(code) => return ExitCode::from(code),
-            Err(e) => Err(e),
-        },
         #[cfg(unix)]
         Some("raw") => match args.get(1).map(String::as_str) {
             Some("run") => run::run(&args[2..]),
