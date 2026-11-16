@@ -39,3 +39,7 @@ jobs:
           grep -Fq 'ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_DATA_DIR=/var/lib/caskel-daemon/data' result/lib/systemd/system/caskel.service
+      # The Nix package intentionally skips privileged integration tests,
+      # but the agent and daemon's pure Linux unit tests must compile and pass.
+      - name: Linux Rust unit tests
+        run: nix develop --command cargo test --locked -p kiri-init -p kiri-proto -p kiri
