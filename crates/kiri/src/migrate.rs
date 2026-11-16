@@ -103,8 +103,25 @@ fn get(socket: &Path, route: &str) -> io::Result<Value> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Docker GET {route}: {e}")))
 }
 
+fn ensure_docker_engine(version: &Value) -> io::Result<()> {
+    // The older Kiri and current Caskel API advertise KiriVersion even when
+    // their Docker-compatible Version field looks like Docker itself.
+    let vendor = version["Platform"]["Name"].as_str().unwrap_or_default();
+    let ours = version.get("KiriVersion").is_some()
+        || ["kiri", "caskel"].iter().any(|n| vendor.eq_ignore_ascii_case(n))
+        || version["Components"].as_array().is_some_and(|components|
+            components.iter().any(|c| ["kiri", "caskel"].iter().any(|n|
+                c["Name"].as_str().is_some_and(|name| name.eq_ignore_ascii_case(n)))));
+    if ours {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput,
+            "source API identifies as Caskel/Kiri, not Docker Engine"));
+    }
+    Ok(())
+}
+
 fn discover(socket: &Path) -> io::Result<Value> {
     let version = get(socket, "/version")?;
+    ensure_docker_engine(&version)?;
     let listing = get(socket, "/containers/json?all=1")?;
     let images = get(socket, "/images/json")?;
     let volumes = get(socket, "/volumes")?;
@@ -131,6 +148,17 @@ fn discover(socket: &Path) -> io::Result<Value> {
             "destination": string(m, "Destination"),
             "read_write": m["RW"].as_bool().unwrap_or(false)
         })).collect::<Vec<_>>();
+        // Also capture configured published-port bindings for stopped
+        // containers; docker ps can omit their inactive published ports.
+        let mut configured_port_bindings = detail["HostConfig"]["PortBindings"].as_object()
+            .into_iter().flat_map(|ports| ports.iter()).map(|(target, hosts)| json!({
+                "container": target,
+                "hosts": hosts.as_array().into_iter().flatten().map(|host| json!({
+                    "host_ip": host["HostIp"], "host_port": host["HostPort"]
+                })).collect::<Vec<_>>()
+            })).collect::<Vec<_>>();
+        configured_port_bindings.sort_unstable_by(|a, b|
+            a["container"].as_str().cmp(&b["container"].as_str()));
         let ports = row["Ports"].as_array().into_iter().flatten().map(|p| json!({
             "container_port": p["PrivatePort"],
             "host_port": p["PublicPort"],
@@ -151,6 +179,7 @@ fn discover(socket: &Path) -> io::Result<Value> {
             "label_keys": label_keys,
             "mounts": mounts,
             "published_ports": ports,
+            "configured_port_bindings": configured_port_bindings,
             "networks": attached_networks
         }));
     }
@@ -247,6 +276,18 @@ mod tests {
     }
 
     #[test]
+    fn rejects_caskel_and_kiri_compatibility_apis_even_on_other_sockets() {
+        let valid = serde_json::json!({"Platform": {"Name": "Docker Engine - Community"}, "Version": "29"});
+        assert!(ensure_docker_engine(&valid).is_ok());
+        let legacy = serde_json::json!({"Version": "27.5.1", "KiriVersion": "0.2.1"});
+        assert!(ensure_docker_engine(&legacy).is_err());
+        let renamed = serde_json::json!({"Platform": {"Name": "Caskel"}});
+        assert!(ensure_docker_engine(&renamed).is_err());
+        let component = serde_json::json!({"Components": [{"Name": "Kiri", "Version": "0.2.1"}]});
+        assert!(ensure_docker_engine(&component).is_err());
+    }
+
+    #[test]
     fn refuses_implicit_writes_and_unsupported_dry_runs() {
         assert!(run(&["docker".into()]).is_err());
         assert!(run(&["docker".into(), "--dry-run".into()]).is_err());
@@ -276,7 +317,7 @@ mod tests {
                         "com.docker.compose.project": "demo", "api-token": "DO_NOT_EXPOSE"
                     }},
                     "Mounts": [{"Type": "volume", "Source": "/var/lib/docker/volumes/db-data", "Destination": "/data", "RW": true}],
-                    "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
+                    "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}, "PortBindings": {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "15432"}]}},
                     "NetworkSettings": {"Networks": {"project_net": {}}}
                 })),
             ];
@@ -297,6 +338,7 @@ mod tests {
         assert_eq!(inventory["containers"][0]["name"], "database");
         assert_eq!(inventory["containers"][0]["restart_policy"], "unless-stopped");
         assert_eq!(inventory["containers"][0]["published_ports"][0]["host_port"], 15432);
+        assert_eq!(inventory["containers"][0]["configured_port_bindings"][0]["hosts"][0]["host_port"], "15432");
         assert_eq!(inventory["containers"][0]["networks"][0], "project_net");
         assert_eq!(inventory["containers"][0]["mounts"][0]["destination"], "/data");
         assert_eq!(inventory["images"][0]["tags"][0], "postgres:16");
