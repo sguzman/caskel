@@ -1,72 +1,71 @@
-# Contributing to Kiri
+# Contributing to Caskel
 
-Thanks for helping. Issues and pull requests are welcome.
+Caskel is an independently maintained **Linux-first** Rust container engine.
+Contributions should preserve Docker API compatibility where intentional,
+minimize privileges, respect upstream provenance and keep deployed user
+data safe.
 
-## Before you start
+## Development scope
 
-For anything larger than a small fix, open an issue first so we can agree on
-the approach, and wait for that before you write the code. Kiri aims to be
-small and fast: changes that add a dependency, a background process or
-startup time need a good reason.
+- Target tested Linux behavior, starting with `x86_64-linux`.
+- Keep changes focused and reviewable. Develop on `feat/*`, `fix/*`,
+  `docs/*` or attributed `sync/*` branches; do not fast-forward Caskel
+  to upstream Kiri's main branch.
+- Preserve production Docker's default socket, context and state. Caskel
+  uses isolated paths and an explicitly installed service.
+- Never silently repurpose an old Kiri service, package hook, install script,
+  updater, or protected logo as Caskel.
+- Treat `KIRI_*` variables, private agent protocols and persisted state as
+  compatibility-sensitive. Map and test consumers before renaming them.
 
-Bug reports need the Kiri version and system, the exact commands you ran and
-the output you got, as the issue form asks. A report we can't reproduce, or a
-problem found only by reading the code, may be closed until it can be shown
-on a real machine.
+## Build and checks
 
-Keep at most 3 pull requests open at a time. Each one takes a maintainer's
-time to review, and a few at a time get reviewed sooner. Pull requests beyond
-that, or larger changes without an agreed issue, are closed; you're welcome
-to reopen them one at a time later.
+Use the pinned Nix environment:
 
-## Building and testing
-
-```sh
-cargo xtask host      # target/release/kiri, signed with the virtualization entitlement
-cargo test            # unit tests
-tests/e2e.sh          # the Docker compatibility suite, against a running `kiri daemon`
+```fish
+nix develop
 ```
 
-Use `cargo xtask host`, not plain `cargo build`, for a binary you run as the
-daemon: without the virtualization entitlement the VM will not start. The
-guest needs `cargo xtask kernel`, `cargo xtask disk` and `cargo xtask guest`
-once; see the README.
+```fish
+nix flake check
+```
 
-`tests/e2e.sh` only removes containers, networks and volumes it created.
+```fish
+nix build .#caskel
+```
 
-## Every feature ships on macOS, Windows and Linux together
+```fish
+nix develop --command cargo fmt --all -- --check
+```
 
-- A feature comes in one pull request, for all three systems, built and
-  tested on each of them before it's merged.
-- No `if (WIN)` or Kiri Dev (`flavor::dev()`) gate that hides a feature from
-  a system or from Kiri. Words may differ by system ("Show in Finder"); what
-  the window offers may not. Plumbing (contexts, update URLs) may differ.
-- `python3 scripts/ui-test.py` must pass. Its parity test opens the window as
-  each system and fails when one shows something another doesn't, unless
-  `tests/ui/parity-allow.txt` gives the reason. A new line there needs a
-  maintainer's OK. It also runs on every pull request; on Linux, point
-  `CHROME` at your Chrome or Chromium.
+```fish
+nix develop --command cargo test --locked -p kiri -p kiri-proto -p kiri-vmm
+```
 
-## Speed is a feature
+GitHub Actions runs additional privileged Linux agent and container smoke
+tests on **disposable runners**, strict UI/i18n checks, CodeQL and
+performance comparisons. Never reproduce privileged tests or benchmark
+cleanup operations against a host with important Docker workloads.
 
-Kiri is small and fast on purpose, and every pull request is checked for it.
-The Speed check builds main and your change, runs both engines side by side
-on one machine and compares them: `docker run`, API round trips, the daemon's
-memory, the system calls one container costs, and the binaries' size. It
-fails when the change is slower than main past the limits in
-`scripts/perf.py`; the table is in the check's summary. To run it yourself on
-Linux, build both with `cargo xtask linux` and run
-`scripts/perf-run.sh <main's build> <your build> <work folder>`.
+## Safety review for every change
 
-## Pull requests
+A pull request should explain the source-level motivation, files and
+interfaces touched, tests actually run, known gaps, rollback implications,
+and whether root privileges, network rules, mounts, storage or the daemon
+socket could be affected.
 
-- Keep each pull request to one change, with a message that says what it does
-  and why.
-- Run `cargo fmt`, `cargo clippy` and the tests. After changing Rust
-  dependencies or bundled tool versions, run `scripts/ci/notices.sh` and commit
-  the updated NOTICE.
-- Sign your commits and the [Contributor License Agreement](CLA.md) when CLA
-  Assistant asks for it on your first pull request.
+Migration work must first inventory Docker state read-only, then show a
+deterministic dry-run, and only later implement explicit per-service
+cutover and rollback. Do not attach a live database to two engines at
+once or make a Docker context switch automatically.
 
-By submitting a contribution you agree it is licensed under Apache-2.0, as
-described in the README and the Contributor License Agreement.
+For selected upstream fixes, attribute the upstream commit and
+dependencies in the PR. Keep original `LICENSE`/`NOTICE` and required
+copyright notices intact. Follow applicable contribution/license
+requirements already recorded in the repository; do not erase author
+credits in cleanup patches.
+
+See [development guide](docs/development.md),
+[security policy](SECURITY.md),
+[upstream tracking](UPSTREAM.md) and
+[verification roadmap](docs/roadmap.md).
