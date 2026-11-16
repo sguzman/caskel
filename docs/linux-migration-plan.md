@@ -1,6 +1,6 @@
 # Linux Docker Engine → Caskel migration
 
-**Status: planned — not yet implemented.**
+**Status: initial read-only inventory implemented. Planning and migration remain unimplemented.**
 
 Upstream contains an importer at `crates/kiri/src/import.rs`, built
 around Docker Desktop and OrbStack contexts. That code is not exposed by
@@ -25,15 +25,27 @@ bulk migration.
 7. **Regression tests** for Compose, DNS, published ports, bind mounts,
    volumes, restart policies, security and state persistence.
 
-Candidate CLI design, **not implemented yet**:
+Read-only discovery command:
 
 ```fish
 caskel migrate docker --list
 ```
 
 ```fish
-caskel migrate docker --dry-run
+caskel migrate docker --list --json
 ```
+
+The initial implementation connects directly to `/var/run/docker.sock`, or an
+explicit `--socket PATH`, and issues GET requests only. It reads container,
+image, network and volume metadata, including Compose project labels, mounts,
+published ports and restart policies. Arbitrary label values and container
+environment variables are excluded. It rejects source sockets resolving to
+Caskel or the old Kiri engine, and does not change Docker's default context.
+
+The JSON inventory contains infrastructure names and host paths: keep it
+private. This is discovery only, not an application dependency graph.
+
+**Planned, not yet implemented:** `caskel migrate docker --dry-run`.
 
 ## Safety principles
 
