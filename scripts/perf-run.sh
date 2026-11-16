@@ -17,6 +17,23 @@ PERF_SCRIPT=${PERF_SCRIPT:-$HERE/perf.py}
 SUDO=; [ "$(id -u)" = 0 ] || SUDO=sudo
 mkdir -p "$WORK"; WORK=$(cd "$WORK" && pwd)
 
+# When both compiled engine artifacts are byte-identical, there is no engine
+# performance change to measure. Running the same binary twice on one CI VM
+# can still produce false positive latency regressions from host scheduling.
+# This is an exact comparison, not a tolerance increase: any changed byte
+# runs the full benchmark with main's unchanged thresholds.
+if cmp -s "$BASE_BIN/kiri" "$HEAD_BIN/kiri" &&
+   cmp -s "$BASE_BIN/kiri-init" "$HEAD_BIN/kiri-init"; then
+  printf '%s\n' \
+    '## Speed: identical engine binaries' \
+    '' \
+    'Both the main and change builds produced byte-identical kiri and kiri-init executables.' \
+    'No runtime performance delta exists to benchmark; the normal limits remain in effect for changed binaries.' \
+    > "$WORK/report.md"
+  cat "$WORK/report.md"
+  exit 0
+fi
+
 stop() {
   docker rm -f kiri-perf-base kiri-perf-head >/dev/null 2>&1 || true
   docker volume rm kiri-perf-base-lib kiri-perf-base-store kiri-perf-head-lib kiri-perf-head-store >/dev/null 2>&1 || true
