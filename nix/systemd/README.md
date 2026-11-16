@@ -1,141 +1,131 @@
-# Optional systemd integration on EndeavourOS / Arch
+# Caskel systemd integration on Arch / EndeavourOS
 
-This is an opt-in bridge between a **root-owned Nix profile** and Arch's
-system systemd manager. It is not a NixOS module. The Nix derivation merely
-ships the unit file: `nix build` never installs or starts anything.
+Caskel and its Nix profile are **separate** from the original Kiri test
+installation and from production Docker. No action below alters Docker's
+default context, `/run/docker.sock` or any existing Docker container.
 
-The unit is for native x86-64 Linux only and intentionally avoids global
-Docker socket changes, CLI replacement, or automatic service startup.
+## Layout
 
-## Requirements and safety boundaries
+| Resource | Existing Kiri test | New Caskel |
+|---|---|---|
+| Profile | `/nix/var/nix/profiles/kiri` | `/nix/var/nix/profiles/caskel` |
+| Service | `kiri.service` | `caskel.service` |
+| Socket | `/run/kiri/docker.sock` | `/run/caskel/docker.sock` |
+| Persistent state | Under `/var/lib/kiri-daemon` | `/var/lib/caskel-daemon` |
+| Image store | Existing Kiri inventory | `/var/lib/caskel-daemon/data` |
 
-- Nix with `nix-command` and `flakes`, systemd, and a working Docker CLI.
-- `doas` for the few explicit root operations.
-- The existing `docker` group, used for socket access. **Docker group
-  membership already grants effectively root-equivalent access.** The
-  `kiri` service uses the same group; it never modifies group membership.
-- The `/nix/var/nix/profiles/kiri` profile is **dedicated to Kiri only**.
-- Kiri listens on `/run/kiri/docker.sock`, not `/run/docker.sock`.
-- The optional local-domain HTTP/HTTPS routers use loopback ports 18080 and
-  18443 instead of 80 and 443. Kiri also listens for its optional DNS on
-  `127.0.0.1:53535`, **not** the system's port 53.
-- When started, the privileged engine can still change bridges, mounts,
-  cgroups and nftables rules. Inspect the system before starting it next to
-  production containers. The unit does not attempt to sandbox those features.
-- Containers and engine state are separate from the Nix profile and persist
-  under `/var/lib/kiri-daemon`. Removal does **not** delete them.
-- Do not activate or enable the service automatically on first installation.
+**No data is migrated automatically.** The old Alpine image and old Kiri
+runtime state remain available for rollback. The root-owned Caskel service
+has access to the shared Linux host, including bridges, nftables, mounts and
+cgroups, and runs with effectively root-equivalent privileges.
+
+Do not run the old Kiri and new Caskel daemons at the same time: their
+network management has shared assumptions. The new unit also declines
+to start when `/run/kiri/docker.sock` exists. Docker can continue running.
 
 ## Build and inspect (unprivileged)
 
-From the repository's `main` branch, after the systemd integration PR
-is merged:
-
 ```fish
-nix build .#kiri
+nix build .#caskel
 ```
 
 ```fish
-ls -l result/bin/kiri result/bin/kiri-init result/lib/systemd/system/kiri.service
+ls -l result/bin/caskel result/bin/kiri-init result/lib/systemd/system/caskel.service
 ```
 
 ```fish
-cat result/lib/systemd/system/kiri.service
+cat result/lib/systemd/system/caskel.service
 ```
 
-## Install into a dedicated root-owned Nix profile
+The flake builds both the public CLI and the internal `kiri-init` agent.
+It packages the service unit but does **not** install or start it.
 
-Before installing, verify there is no pre-existing Kiri service or profile
-from another experiment: `systemctl cat kiri.service` and
-`ls -ld /nix/var/nix/profiles/kiri` (an absent path is expected).
-
-```fish
-getent group docker
-```
+## Install into a distinct Nix profile
 
 ```fish
-doas nix profile install --profile /nix/var/nix/profiles/kiri (realpath result)
+doas nix profile install --profile /nix/var/nix/profiles/caskel (realpath result)
 ```
 
 ```fish
-doas systemctl link /nix/var/nix/profiles/kiri/lib/systemd/system/kiri.service
+doas systemctl link /nix/var/nix/profiles/caskel/lib/systemd/system/caskel.service
 ```
 
 ```fish
-systemctl cat kiri.service
+systemctl cat caskel.service
 ```
 
-Use the stable profile path above rather than `realpath`: linking a specific
-`/nix/store` derivation would leave systemd pointing at an old unit after
-Kiri is upgraded or rolled back. `systemctl link` registers the unit without
-starting or enabling it.
+```fish
+fish_add_path -U /nix/var/nix/profiles/caskel/bin
+```
 
-At this point systemd knows about Kiri, but it is **not started or enabled**.
+The service is now registered but **not started or enabled at boot**. Do
+not `realpath` the unit when linking; its location under the Nix profile
+should remain stable across profile generations.
 
-## Opt-in smoke test, after host network review
+## Controlled smoke test
+
+When ready to pause the **experimental** Kiri daemon, but not Docker:
+
+```fish
+doas systemctl stop kiri.service
+```
+
+```fish
+systemctl is-active kiri.service
+```
+
+Expect `inactive`. Then:
+
+```fish
+doas systemctl start caskel.service
+```
+
+```fish
+systemctl status caskel.service -l --no-pager
+```
+
+```fish
+caskel version
+```
+
+```fish
+caskel run --rm --network none alpine:3.21 echo CASKEL_OK
+```
+
+The first test might pull the Alpine image again: Caskel deliberately
+has a new inventory. Follow with `docker ps` to confirm production
+Docker services are still healthy.
+
+Optional: create a named Docker context without changing the default,
+after inspecting any existing one with `docker context inspect caskel`:
+
+```fish
+docker context create caskel --docker host=unix:///run/caskel/docker.sock
+```
+
+Do **not** use `docker context use caskel` on this production host.
+
+## Rollback
+
+Stop Caskel before restarting the old experimental Kiri service:
+
+```fish
+doas systemctl stop caskel.service
+```
 
 ```fish
 doas systemctl start kiri.service
 ```
 
-```fish
-systemctl status kiri.service --no-pager
-```
+To fully unregister the new system service, use
+`doas systemctl disable --now caskel.service`; once stopped, remove the
+separate package with
+`doas nix profile remove --profile /nix/var/nix/profiles/caskel --all`.
+Do not remove `/var/lib/caskel-daemon` or old Kiri data without a separate
+backup and explicit approval. The working Docker runtime is outside all
+these profile operations.
 
-```fish
-docker context create kiri --docker host=unix:///run/kiri/docker.sock
-```
-
-```fish
-docker --context kiri info
-```
-
-```fish
-docker --context kiri run --rm --network none alpine:3.21 true
-```
-
-If the `kiri` context already exists, inspect it with
-`docker context inspect kiri` instead of recreating it. Always pass
-`--context kiri` explicitly: never use `docker context use kiri` during
-the coexistence test. On failure, stop Kiri and inspect
-`journalctl -u kiri.service -b --no-pager`.
-
-## Stop, undo, and keep your data
-
-```fish
-doas systemctl disable --now kiri.service
-```
-
-```fish
-doas systemctl daemon-reload
-```
-
-```fish
-doas nix profile remove --profile /nix/var/nix/profiles/kiri --all
-```
-
-```fish
-docker context rm kiri
-```
-
-`systemctl disable` removes links created by `systemctl link`, even if
-the service was never enabled. The dedicated Nix profile's previous
-generations remain available for rollback; use
-`doas nix profile wipe-history --profile /nix/var/nix/profiles/kiri`
-**only when you no longer want those rollback generations**.
-
-No commands above delete `/var/lib/kiri-daemon`, Docker data, images,
-networks, or your existing system services. Do not erase Kiri runtime data
-until you have inspected or backed it up separately.
-
-## Upgrade/rollback model
-
-The unit executes the stable root profile path, not a particular store hash.
-Future updates should replace the Kiri item in the dedicated profile and
-restart `kiri.service` explicitly, then verify the engine. Do not update
-or garbage-collect the Nix store while an experimental Kiri daemon is still
-running without validating the package transition.
-
-The `nix profile rollback --profile /nix/var/nix/profiles/kiri` operation
-can select a previous package generation. It still requires a deliberate
-service restart to take effect.
+For upgrades, replace only the dedicated Caskel profile after review and
+restart the Caskel service explicitly. For rollback, use
+`doas nix profile rollback --profile /nix/var/nix/profiles/caskel`
+before deliberately restarting its service.
