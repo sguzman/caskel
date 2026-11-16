@@ -9,7 +9,7 @@ use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 
-use kiri_proto::{COPY_PORT, CopySpec, FsEntry, Msg, copy_flags, copy_op};
+use caskel_proto::{COPY_PORT, CopySpec, FsEntry, Msg, copy_flags, copy_op};
 
 use super::container::{self, Paths};
 use super::sys;
@@ -62,7 +62,7 @@ fn job(sock: OwnedFd, running: &[(&str, libc::pid_t)], paths: &Paths) -> io::Res
     let mut conn = fs::File::from(sock);
     let mut frame = Vec::new();
     read_frame(&mut conn, &mut frame)?;
-    let spec = match kiri_proto::decode(&frame) {
+    let spec = match caskel_proto::decode(&frame) {
         Ok(Msg::Copy(c)) => c,
         Ok(other) => return reply_error(&mut conn, &format!("expected a copy request, got {other:?}")),
         Err(e) => return reply_error(&mut conn, &format!("bad frame: {e:?}")),
@@ -427,7 +427,7 @@ fn reply_error(conn: &mut fs::File, msg: &str) -> io::Result<()> {
 fn read_frame(conn: &mut impl Read, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.resize(4, 0);
     conn.read_exact(&mut buf[..4])?;
-    let len = kiri_proto::frame_len(buf[..4].try_into().expect("4 bytes")).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
+    let len = caskel_proto::frame_len(buf[..4].try_into().expect("4 bytes")).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
     buf.resize(len, 0);
     conn.read_exact(&mut buf[4..])
 }
