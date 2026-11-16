@@ -36,6 +36,9 @@ jobs:
           nix build .#kiri --show-trace
           test -x result/bin/kiri
           test -x result/bin/kiri-init
+          test -f result/lib/systemd/system/kiri.service
+          grep -Fq 'ExecStart=/nix/var/nix/profiles/kiri/bin/kiri daemon' result/lib/systemd/system/kiri.service
+          grep -Fq 'KIRI_SOCKET=/run/kiri/docker.sock' result/lib/systemd/system/kiri.service
       - name: Commit initial flake lock after successful build
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/nix-flake'
         run: |
