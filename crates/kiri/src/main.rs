@@ -1,11 +1,10 @@
-//! The `kiri` command.
+//! Caskel's Linux-native command-line and daemon entry point.
+
+#[cfg(not(target_os = "linux"))]
+compile_error!("Caskel supports Linux hosts only");
 
 use std::process::ExitCode;
 
-#[cfg(target_os = "macos")]
-mod bench;
-#[cfg(target_os = "macos")]
-mod boot;
 // builds, cli_pins, scan and tools on Linux too: the daemon reads an
 // image's layers and scans it for kiri-win, whose window can't reach the
 // store inside WSL (daemon/api.rs).
@@ -43,8 +42,6 @@ mod images;
 mod guest;
 #[cfg(target_os = "linux")]
 mod hostaccess;
-#[cfg(target_os = "macos")]
-mod import;
 #[cfg(unix)]
 mod k8s;
 // kubectl's own file, which `kiri k8s` puts its context in.
@@ -57,43 +54,32 @@ mod run;
 #[cfg(unix)]
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod scan;
-#[cfg(target_os = "macos")]
-mod setup;
 #[cfg(unix)]
 mod usb;
 #[cfg(unix)]
 mod stale;
-#[cfg(windows)]
-mod wsl;
 #[cfg(any(unix, windows))]
 mod share;
-#[cfg(any(target_os = "macos", all(target_os = "linux", feature = "window")))]
+#[cfg(all(target_os = "linux", feature = "window"))]
 mod ui;
 #[cfg(unix)]
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod tools;
-#[cfg(target_os = "macos")]
-mod update;
 
 const USAGE: &str = "\
 usage: caskel COMMAND          docker's commands, on Caskel: caskel run, ps, exec,
                              logs, stop, rm, images, pull, build, compose…
        caskel daemon
-       caskel bridge [--socket PATH]   (WSL2: the end of kiri-win.exe)
+       caskel bridge [--socket PATH]
        caskel ui [--start] [--view containers|images|volumes|networks]
-       caskel setup [--use] [--no-agent] | caskel setup --uninstall
        caskel build-with [docker|caskel]   which builder docker build uses
-       caskel update [--check]
        caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [-n N]
        caskel diag report [--out PATH] [--send]   (a file to send us, tokens taken out)
        caskel PORT [NAME]           share a local port on the internet (same as caskel share PORT)
        caskel share PORT|CONTAINER [--name N] | share login | logout | status
        caskel k8s start [--use] | stop | status | delete | set [--lan on|off] [--tls-san NAME,…] [--port N]
-       caskel usb [list] | attach DEVICE | detach DEVICE   USB devices for containers, beta (Mac: pass through to the VM)
+       caskel usb [list] | attach DEVICE | detach DEVICE   USB devices for containers, beta
        caskel machine create NAME [--distro D] | list | shell NAME | stop | delete NAME
-       caskel import [orbstack | desktop-linux] [--list]
-       caskel bench [--runs N] [--image IMAGE] [--network none|bridge]
-       caskel boot [--console] [--pings N]
        caskel raw run [--rm] [-e KEY=VALUE]... IMAGE [COMMAND...]   (its own guest, no daemon)
        caskel raw pull <image> | raw images | raw rmi <image>...";
 
@@ -106,10 +92,8 @@ fn main() -> ExitCode {
         Some("daemon") => diag::Part::Daemon,
         // Only a build with the window: elsewhere `kiri ui` is a plain
         // command whose message must reach the terminal, not the log's pipe.
-        #[cfg(any(target_os = "macos", all(target_os = "linux", feature = "window")))]
+        #[cfg(all(target_os = "linux", feature = "window"))]
         Some("ui") => diag::Part::Ui,
-        #[cfg(target_os = "macos")]
-        None if setup::launched_from_app() => diag::Part::Ui,
         _ => diag::Part::Cli,
     });
     let result: std::io::Result<()> = match args.first().map(String::as_str) {
@@ -136,12 +120,6 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         },
-        #[cfg(target_os = "macos")]
-        Some("bench") => bench::run(&args[1..]),
-        #[cfg(target_os = "macos")]
-        Some("boot") => boot::run(&args[1..]),
-        #[cfg(target_os = "macos")]
-        Some("setup") => setup::run(&args[1..]),
         #[cfg(any(unix, windows))]
         Some("share") => share::run(&args[1..]),
         // `kiri 3000`: share a port straight away.
@@ -155,16 +133,9 @@ fn main() -> ExitCode {
         Some("machine") => machine::run(&args[1..]),
         #[cfg(unix)]
         Some("usb") => usb::run(&args[1..]),
-        #[cfg(target_os = "macos")]
-        Some("import") => import::run(&args[1..]),
-        #[cfg(target_os = "macos")]
-        Some("update") => update::run(&args[1..]),
         #[cfg(unix)]
         Some("diag") => diag::run(&args[1..]),
-        // Opening Kiri.app: set up on first launch, then the window.
-        #[cfg(target_os = "macos")]
-        None if setup::launched_from_app() => setup::first_launch().and_then(|()| ui::run(true, None)),
-        #[cfg(any(target_os = "macos", all(target_os = "linux", feature = "window")))]
+        #[cfg(all(target_os = "linux", feature = "window"))]
         Some("ui") => ui::run(
             args.iter().any(|a| a == "--start"),
             args.iter().position(|a| a == "--view").and_then(|i| args.get(i + 1)).cloned(),
@@ -177,9 +148,6 @@ fn main() -> ExitCode {
             engine_version_check();
             docker::run(&args)
         }
-        // Windows: the engine's commands, by the `kiri` in WSL.
-        #[cfg(windows)]
-        Some(c) if wsl::COMMANDS.contains(&c) => wsl::run(&args),
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::FAILURE;
@@ -191,7 +159,7 @@ fn main() -> ExitCode {
             // The subcommand only: arguments can carry values.
             #[cfg(unix)]
             if !e.to_string().starts_with("usage:") {
-                // Opened from Finder or the Dock there is none: "open" (#250).
+                // Only the subcommand is logged: args may contain private values.
                 diag::warn!("command failed", command = args.first().map_or(Some("open"), |a| (a.len() <= 20 && a.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')).then_some(a.as_str())).unwrap_or(""), error = e);
             }
             eprintln!("caskel: {e}");
@@ -200,19 +168,18 @@ fn main() -> ExitCode {
     }
 }
 
-/// Where the `kiri` package puts the window: the same command built with
-/// GTK and WebKitGTK (packaging/linux/build.sh).
+/// An optional, separately packaged Linux GTK/WebKit window for Caskel.
+/// The headless Nix package does not install it.
 #[cfg(all(target_os = "linux", not(feature = "window")))]
-const WINDOW: &str = "/usr/lib/kiri/kiri-window";
+const WINDOW: &str = "/usr/lib/caskel/caskel-window";
 
-/// `kiri ui` on Linux: runs the package's window, or says why there is none.
+/// `caskel ui` on Linux: launch the optional window if installed.
 #[cfg(all(target_os = "linux", not(feature = "window")))]
 fn window(args: &[String]) -> std::io::Result<()> {
     use std::os::unix::process::CommandExt;
     if !std::path::Path::new(WINDOW).exists() {
         return Err(std::io::Error::other(
-            "this Kiri has no window. It comes with the kiri package for x86-64 (Debian, Ubuntu, Fedora); \
-             kiri-lite and the ARM packages are the engine and CLI only",
+            "this Caskel build has no Linux window; install a window-enabled Caskel package or build with the 'window' feature",
         ));
     }
     // exec returns only when it failed.
@@ -222,9 +189,8 @@ fn window(args: &[String]) -> std::io::Result<()> {
 #[cfg(not(unix))]
 fn engine_version_check() {}
 
-/// Before a docker command: when the engine runs another version than this
-/// `kiri`, say so (on stderr, so output stays clean). Either an update whose
-/// engine restart was put off, or another `kiri` earlier on PATH.
+/// Before a Docker-compatible command, warn if the CLI and daemon versions
+/// differ (on stderr, so machine-readable output remains clean).
 #[cfg(unix)]
 fn engine_version_check() {
     let me = env!("CARGO_PKG_VERSION");
@@ -233,7 +199,7 @@ fn engine_version_check() {
     }
     let Some(engine) = client::request("GET", "/version", None).ok().filter(|r| r.ok()).and_then(|r| client::kiri_version(&r.json()).map(str::to_owned)) else { return };
     if engine != me && engine != "0.0.0" {
-        let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "kiri".into());
-        eprintln!("kiri: this kiri ({exe}) is {me}, but the engine runs {engine}. Restart the engine to use one version (Kiri → Restart engine), or remove the older kiri.");
+        let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "caskel".into());
+        eprintln!("caskel: this CLI ({exe}) is {me}, but the engine runs {engine}. Restart the Caskel daemon to use one version.");
     }
 }

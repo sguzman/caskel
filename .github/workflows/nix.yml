@@ -45,6 +45,8 @@ jobs:
       # the separate privileged Linux acceptance environment.
       - name: Check Linux-only xtask wrapper
         run: nix develop --command cargo check --locked -p xtask
+      - name: Linux agent transport unit tests
+        run: nix develop --command cargo test --locked -p kiri-vmm
       - name: Linux Rust unit tests (unprivileged)
         run: |
           nix develop --command cargo test --locked -p kiri -p kiri-proto

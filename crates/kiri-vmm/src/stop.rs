@@ -17,7 +17,7 @@ pub(crate) fn retire(
     } else {
         Err(io::Error::new(
             io::ErrorKind::TimedOut,
-            "the previous VM did not stop",
+            "the previous agent did not stop",
         ))
     }
 }
@@ -60,7 +60,7 @@ mod tests {
     fn confirmed_natural_stop_needs_no_force_request() {
         retire(
             || Ok(true),
-            |_| panic!("a stopped VM must not be forced"),
+            |_| panic!("a stopped agent must not be forced"),
             Duration::ZERO,
             Duration::ZERO,
         )
