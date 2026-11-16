@@ -34,7 +34,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime};
 
-use kiri_share_proto::{self as proto, Msg};
+use caskel_share_proto::{self as proto, Msg};
 use rustls::pki_types::ServerName;
 use rustls::pki_types::pem::PemObject;
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ const LOCAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 include!(concat!(env!("OUT_DIR"), "/share_build_key.rs"));
 
 /// The build key official releases answer the edge's challenge with (see
-/// `kiri_share_proto::attest`), as its id and bytes. `None` in builds made
+/// `caskel_share_proto::attest`), as its id and bytes. `None` in builds made
 /// without `KIRI_SHARE_BUILD_KEY`; their tunnels show as unverified.
 fn build_key() -> Option<(&'static str, [u8; proto::attest::KEY_LEN])> {
     let (id, masked, pad) = std::hint::black_box(BUILD_KEY)?;
@@ -1125,7 +1125,7 @@ struct Session {
 }
 
 /// The connections a session spreads stream bytes over when the edge allows
-/// more than one (see `kiri_share_proto`, Lanes). Empty until `Welcome`, and
+/// more than one (see `caskel_share_proto`, Lanes). Empty until `Welcome`, and
 /// for edges that don't: then streams send `Data` on the first connection.
 #[derive(Default)]
 struct Lanes {

@@ -14,7 +14,7 @@ use crate::cli_pins::MacArch;
 
 /// Where Kiri Lite keeps the tools.
 pub fn dir() -> io::Result<PathBuf> {
-    Ok(kiri_image::Store::default_root()?.join("cli"))
+    Ok(caskel_image::Store::default_root()?.join("cli"))
 }
 
 /// The three files, as they sit in `dir()`.

@@ -39,7 +39,7 @@ static RUNNING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static LINKS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 fn root() -> io::Result<PathBuf> {
-    kiri_image::Store::default_root()
+    caskel_image::Store::default_root()
 }
 
 fn grype() -> io::Result<PathBuf> {
@@ -51,7 +51,7 @@ const KEEP: usize = 20;
 
 /// An image's scans, one folder each: Grype's JSON report, the SBOM and a summary.
 fn scan_dir(config_digest: &str) -> io::Result<PathBuf> {
-    Ok(root()?.join("scans").join(kiri_image::store::digest_hex(config_digest)?))
+    Ok(root()?.join("scans").join(caskel_image::store::digest_hex(config_digest)?))
 }
 
 /// The image's scans, newest first, by their time. A scan kept before there
@@ -133,12 +133,12 @@ fn ensure_grype(progress: &mut dyn FnMut(u8)) -> io::Result<()> {
 
 /// The image as an OCI layout Grype can read: hard links to the store's
 /// blobs (a copy if they can't be linked) and a manifest written for it.
-fn layout(store: &kiri_image::Store, i: &kiri_image::Image, to: &Path) -> io::Result<()> {
+fn layout(store: &caskel_image::Store, i: &caskel_image::Image, to: &Path) -> io::Result<()> {
     let blobs = to.join("blobs/sha256");
     std::fs::create_dir_all(&blobs)?;
     let put = |digest: &str| -> io::Result<u64> {
         let from = store.blob_path(digest)?;
-        let at = blobs.join(kiri_image::store::digest_hex(digest)?);
+        let at = blobs.join(caskel_image::store::digest_hex(digest)?);
         if !at.exists() && std::fs::hard_link(&from, &at).is_err() {
             std::fs::copy(&from, &at)?;
         }
@@ -156,8 +156,8 @@ fn layout(store: &kiri_image::Store, i: &kiri_image::Image, to: &Path) -> io::Re
         "config": {"mediaType": "application/vnd.oci.image.config.v1+json", "digest": i.config_digest, "size": config_size},
         "layers": layers,
     }))?;
-    let digest = kiri_image::store::sha256_digest(&manifest);
-    std::fs::write(blobs.join(kiri_image::store::digest_hex(&digest)?), &manifest)?;
+    let digest = caskel_image::store::sha256_digest(&manifest);
+    std::fs::write(blobs.join(caskel_image::store::digest_hex(&digest)?), &manifest)?;
     std::fs::write(to.join("oci-layout"), br#"{"imageLayoutVersion":"1.0.0"}"#)?;
     std::fs::write(
         to.join("index.json"),
@@ -168,7 +168,7 @@ fn layout(store: &kiri_image::Store, i: &kiri_image::Image, to: &Path) -> io::Re
 /// Scans the image (a name or an ID). `progress(phase, percent)`, with phase
 /// "scanner" (downloading Grype), "database" or "scanning".
 pub fn scan(name: &str, progress: &mut dyn FnMut(&str, u8)) -> io::Result<Value> {
-    let store = kiri_image::Store::open(root()?)?;
+    let store = caskel_image::Store::open(root()?)?;
     let (i, ..) = crate::builds::stored(&store, name)?;
     {
         let mut r = RUNNING.lock().unwrap();
@@ -191,7 +191,7 @@ pub fn scan(name: &str, progress: &mut dyn FnMut(&str, u8)) -> io::Result<Value>
         let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
         let dir = scan_dir(&i.config_digest)?.join(at.to_string());
         std::fs::create_dir_all(&dir)?;
-        let tmp = store.root().join("tmp").join(format!("scan-{}-{}", std::process::id(), kiri_image::store::digest_hex(&i.config_digest)?));
+        let tmp = store.root().join("tmp").join(format!("scan-{}-{}", std::process::id(), caskel_image::store::digest_hex(&i.config_digest)?));
         let _ = std::fs::remove_dir_all(&tmp);
         layout(&store, &i, &tmp)?;
         let report = dir.join("grype.json.part");
@@ -223,7 +223,7 @@ pub fn scan(name: &str, progress: &mut dyn FnMut(&str, u8)) -> io::Result<Value>
 /// The image's scans for the history list, newest first: when, the count
 /// per severity, how many have a fix. Each summary is worked out once and kept.
 pub fn history(name: &str) -> io::Result<Value> {
-    let store = kiri_image::Store::open(root()?)?;
+    let store = caskel_image::Store::open(root()?)?;
     let (i, ..) = crate::builds::stored(&store, name)?;
     let all = scan_dir(&i.config_digest)?;
     let mut list = Vec::new();
@@ -254,7 +254,7 @@ pub fn history(name: &str) -> io::Result<Value> {
 /// One of the image's scans in full (the newest when `at` is None), or None
 /// if it has none.
 pub fn open(name: &str, at: Option<u64>) -> io::Result<Option<Value>> {
-    let store = kiri_image::Store::open(root()?)?;
+    let store = caskel_image::Store::open(root()?)?;
     let (i, manifest, config) = crate::builds::stored(&store, name)?;
     let all = scan_dir(&i.config_digest)?;
     let Some(when) = at.or_else(|| scan_times(&all).first().copied()) else { return Ok(None) };
@@ -313,7 +313,7 @@ fn summarize(report: &Value, lines: &[Value], config: &Value) -> Value {
 
 /// One scan's SBOM, where it's kept.
 pub fn sbom(name: &str, at: u64) -> io::Result<PathBuf> {
-    let store = kiri_image::Store::open(root()?)?;
+    let store = caskel_image::Store::open(root()?)?;
     let (i, ..) = crate::builds::stored(&store, name)?;
     let from = scan_dir(&i.config_digest)?.join(at.to_string()).join("sbom.cdx.json");
     if !from.is_file() {
