@@ -84,8 +84,41 @@ pub struct Process {
     /// the host's and for execs. Says whether a namespace outlives this
     /// container (see `teardown`).
     pub netns: u64,
+    /// A container's own compiled seccomp program, empty when it runs under
+    /// the default. Its execs run under the same one.
+    pub seccomp: Vec<u8>,
     /// What to undo when a container exits; None for execs.
     teardown: Option<Teardown>,
+}
+
+/// What a started container gives the DNS server (see `spawn`).
+struct Names {
+    /// Its A records: not on an IPv6-only network.
+    v4: bool,
+    v6: Option<[u8; 16]>,
+    /// `--dns` servers.
+    servers: Vec<[u8; 4]>,
+}
+
+#[cfg(test)]
+impl Process {
+    /// A container's process with nothing to tear down, for the agent's tests.
+    pub fn for_test(id: &str, pid: libc::pid_t) -> Self {
+        Process {
+            id: id.to_owned(),
+            container: None,
+            pid,
+            stdout: None,
+            stderr: None,
+            stdin: None,
+            tty: false,
+            dns_entries: Vec::new(),
+            veths: Vec::new(),
+            netns: 0,
+            seccomp: Vec::new(),
+            teardown: None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -123,6 +156,9 @@ struct Prepared {
     /// Capabilities kept, one bit each.
     caps: u64,
     seccomp: bool,
+    /// The program the daemon compiled from the container's own profile;
+    /// empty for the built-in default.
+    profile: Vec<u8>,
     no_new_privs: bool,
     readonly_rootfs: bool,
     shm_size: u64,
@@ -265,6 +301,12 @@ pub fn spawn(spec: &RunSpec<'_>, paths: &Paths, net: NetCtx<'_>) -> io::Result<P
     if !device_filtered {
         prepared.caps &= !(1 << super::devices::CAP_MKNOD);
     }
+    // Looked at now, so a program the kernel would refuse fails the start
+    // with a message rather than the child.
+    if !spec.seccomp.is_empty() {
+        super::seccomp::check(spec.seccomp).map_err(cleanup)?;
+        prepared.profile = spec.seccomp.to_vec();
+    }
     if spec.limits.shm_size > 0 {
         prepared.shm_size = spec.limits.shm_size;
     }
@@ -337,6 +379,11 @@ pub fn spawn(spec: &RunSpec<'_>, paths: &Paths, net: NetCtx<'_>) -> io::Result<P
         }
     };
     let mut veths = Vec::new();
+    // Names, AAAA records and `--dns` servers to give the DNS server, once
+    // nothing can fail any more: a failed start must not leave its names
+    // answering (#325). Nothing is answered before then anyway, since the
+    // agent serves DNS from its loop, after this returns.
+    let mut names: Option<Names> = None;
     // Not bridged, but with sysctls to write: no network to wait for.
     if let Some(go) = go.take_if(|_| !bridged) {
         drop(prepared.net_ready.take());
@@ -363,29 +410,46 @@ pub fn spawn(spec: &RunSpec<'_>, paths: &Paths, net: NetCtx<'_>) -> io::Result<P
             // and its containers no A records.
             if !plug.no_ipv4 {
                 net.dns.serve(spec.net.bridge, spec.net.gateway).map_err(|e| kill_child(io::Error::new(e.kind(), format!("dns: {e}"))))?;
-                net.dns.register(spec.net.bridge, spec.net.dns_names.iter(), spec.net.ip);
             }
             // 127.0.0.11 in the container, when its resolv.conf names it. Not
             // when it names the gateway (the default bridge in the VM): the
             // listener would only hold port 53, and a DNS server in the
             // container could not bind it.
             if nameserver == Some(super::dns::EMBEDDED) {
+                // `pid` is this new child's, so a server already kept under
+                // it belonged to a process that exited and was reaped, still
+                // waiting for its output to be read (see `admit`): it must
+                // not stand in for this container's own.
+                net.dns.drop_container(pid);
                 std::fs::File::open(format!("/proc/{pid}/ns/net"))
                     .and_then(|ns| net.dns.serve_in(&ns, pid, spec.net.ip, spec.net.bridge))
                     .map_err(|e| kill_child(io::Error::new(e.kind(), format!("dns: {e}"))))?;
             }
-            if let Some(v) = v6 {
-                net.dns.register6(spec.net.bridge, spec.net.dns_names.iter(), spec.net.ip, v.ip);
-            }
             // `--dns`: names the network does not know go to these instead.
             let servers: Vec<[u8; 4]> = net_opts::values(spec.net.opts, net_opts::NAMESERVER).filter_map(net::parse_ip).collect();
-            net.dns.set_upstream(spec.net.ip, servers);
+            names = Some(Names { v4: !plug.no_ipv4, v6: v6.map(|v| v.ip), servers });
         }
-        super::hostopts::apply_sysctls(pid, &host.sysctls).map_err(kill_child)?;
+        // Its 127.0.0.11 listener goes with it.
+        super::hostopts::apply_sysctls(pid, &host.sysctls).map_err(|e| {
+            net.dns.drop_container(pid);
+            kill_child(e)
+        })?;
         // SAFETY: one byte to a pipe we own: "your network is ready".
         unsafe { libc::write(go.as_raw_fd(), b"g".as_ptr().cast(), 1) };
     }
-    let (stdin, stdout, stderr) = finish_stdio(parent_io, child_io).map_err(kill_child)?;
+    let (stdin, stdout, stderr) = finish_stdio(parent_io, child_io).map_err(|e| {
+        net.dns.drop_container(pid);
+        kill_child(e)
+    })?;
+    if let Some(Names { v4, v6, servers }) = names {
+        if v4 {
+            net.dns.register(spec.net.bridge, spec.net.dns_names.iter(), spec.net.ip);
+        }
+        if let Some(ip) = v6 {
+            net.dns.register6(spec.net.bridge, spec.net.dns_names.iter(), spec.net.ip, ip);
+        }
+        net.dns.set_upstream(spec.net.ip, servers);
+    }
     Ok(Process {
         id: spec.id.to_owned(),
         container: None,
@@ -397,6 +461,7 @@ pub fn spawn(spec: &RunSpec<'_>, paths: &Paths, net: NetCtx<'_>) -> io::Result<P
         dns_entries: (bridged && embedded_dns).then(|| (spec.net.bridge.to_owned(), spec.net.ip)).into_iter().collect(),
         veths,
         netns,
+        seccomp: spec.seccomp.to_vec(),
         teardown: Some(Teardown { base, rootfs, cgroup, remove }),
     })
 }
@@ -475,7 +540,7 @@ pub fn mount_rootfs(paths: &Paths, id: &str, image_layers: StrList<'_>) -> io::R
 }
 
 /// Starts a process inside a running container: same namespaces, same cgroup.
-pub fn exec(spec: &ExecSpec<'_>, target_pid: libc::pid_t, paths: &Paths) -> io::Result<Process> {
+pub fn exec(spec: &ExecSpec<'_>, target_pid: libc::pid_t, paths: &Paths, profile: &[u8]) -> io::Result<Process> {
     if spec.argv.is_empty() {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "no command to run"));
     }
@@ -497,6 +562,8 @@ pub fn exec(spec: &ExecSpec<'_>, target_pid: libc::pid_t, paths: &Paths) -> io::
     // The container's ulimits and groups apply to its execs too, as with runc.
     let host = super::hostopts::parse(spec.opts)?;
     prepared.host = HostApplied { rlimits: host.rlimits, groups: host.groups, nodes: Vec::new() };
+    // An exec runs under its container's profile, not the default.
+    prepared.profile = profile.to_vec();
     let (parent_io, child_io) = stdio(&prepared)?;
     let args = CloneArgs {
         flags: CLONE_INTO_CGROUP,
@@ -552,6 +619,7 @@ pub fn exec(spec: &ExecSpec<'_>, target_pid: libc::pid_t, paths: &Paths) -> io::
         dns_entries: Vec::new(),
         veths: Vec::new(),
         netns: 0,
+        seccomp: Vec::new(),
         teardown: None,
     })
 }
@@ -683,8 +751,12 @@ pub fn sweep(paths: &Paths, cgroup: &std::path::Path) {
 /// Kills every process in a cgroup and below it, and waits (briefly) until
 /// it is empty.
 fn kill_cgroup(dir: &std::path::Path) {
-    // cgroup.kill is Linux 5.14+; before it, each process, deepest first.
+    // cgroup.kill is Linux 5.14+; before it, each process, deepest first,
+    // frozen first: a process that exits between reading cgroup.procs and
+    // the kill frees its pid for another process to take (#324). Frozen
+    // (waited for), none exits on its own, and SIGKILL still ends them.
     if fs::write(dir.join("cgroup.kill"), "1").is_err() {
+        let _ = super::cgroup::freeze(dir, true);
         fn each(dir: &std::path::Path) {
             if let Ok(entries) = fs::read_dir(dir) {
                 for e in entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())) {
@@ -704,6 +776,9 @@ fn kill_cgroup(dir: &std::path::Path) {
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    // Something outlived the kill (stuck in the kernel): thawed, so the
+    // cgroup isn't left frozen for the next start of this container.
+    let _ = fs::write(dir.join("cgroup.freeze"), "0");
 }
 
 /// Deletes every container directory not in `keep` and not in `running`.
@@ -760,6 +835,7 @@ fn prepare(argv: StrList<'_>, env: StrList<'_>, cwd: &str, user: &str, hostname:
         privileged: flags & run_flags::PRIVILEGED != 0,
         caps: if caps == 0 { default_caps() } else { caps },
         seccomp: flags & (run_flags::PRIVILEGED | run_flags::NO_SECCOMP) == 0,
+        profile: Vec::new(),
         no_new_privs: flags & run_flags::NO_NEW_PRIVS != 0,
         readonly_rootfs: flags & run_flags::READONLY_ROOTFS != 0,
         shm_size: 64 << 20,
@@ -1266,10 +1342,21 @@ fn finish_child(p: &Prepared, io: &ChildStdio, console: bool) -> ! {
             fail("no-new-privileges", io::Error::last_os_error());
         }
     }
-    // While still root with CAP_SYS_ADMIN, which installing a filter needs.
-    // Without the default profile the host boundary stays: vsock is not
-    // namespaced, and privileges inside the VM are no reason to reach the host.
-    super::seccomp::install(p.seccomp.then_some(p.caps)).unwrap_or_else(|e| fail("seccomp", e));
+    // As runc: a container's own profile is installed while still root with
+    // CAP_SYS_ADMIN, which installing a filter needs, unless the container has
+    // no-new-privileges. Then it is installed as late as possible, right
+    // before execve, after the user switch and the capability drop. The host
+    // boundary always goes first: vsock is not namespaced, and privileges
+    // inside the VM are no reason to reach the host.
+    let late_profile = p.no_new_privs && !p.profile.is_empty();
+    if p.profile.is_empty() {
+        super::seccomp::install(p.seccomp.then_some(p.caps))
+    } else if late_profile {
+        super::seccomp::install_boundary()
+    } else {
+        super::seccomp::install_profile(&p.profile)
+    }
+    .unwrap_or_else(|e| fail("seccomp", e));
     let (uid, gid) = resolve_user(&p.user).unwrap_or_else(|e| fail("user", e));
     // The user's /etc/group memberships and --group-add, as Docker gives them.
     let groups = super::hostopts::supplementary_groups(&p.user, uid, &p.host.groups).unwrap_or_else(|e| fail("groups", e));
@@ -1304,7 +1391,13 @@ fn finish_child(p: &Prepared, io: &ChildStdio, console: bool) -> ! {
         envp.push(h.as_ptr());
     }
     envp.push(std::ptr::null());
+    let install_late = || {
+        if late_profile {
+            super::seccomp::install_late(&p.profile).unwrap_or_else(|e| fail("seccomp", e));
+        }
+    };
     if console && p.init {
+        install_late();
         super::pid1::run(&exe, argv.as_ptr(), envp.as_ptr(), p.tty);
     }
     // The program starts as Docker would start it: nothing blocked and
@@ -1319,6 +1412,7 @@ fn finish_child(p: &Prepared, io: &ChildStdio, console: bool) -> ! {
         libc::sigemptyset(&mut none);
         libc::sigprocmask(libc::SIG_SETMASK, &none, std::ptr::null_mut());
     }
+    install_late();
     // SAFETY: NULL-terminated arrays of valid C strings that outlive the call.
     unsafe { libc::execve(exe.as_ptr(), argv.as_ptr(), envp.as_ptr()) };
     sys::exec_fail(2, &exe, io::Error::last_os_error(), false)
@@ -1718,7 +1812,7 @@ mod tests {
     fn resolv(flags: u32, opts: &[&str], upstream: &[[u8; 4]]) -> String {
         let mut buf = Vec::new();
         let net = Net { bridge: "kiri1", ip: [10, 5, 0, 2], prefix: 24, gateway: [10, 5, 0, 1], extra_hosts: &[], dns_names: &[], opts };
-        encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", flags, net, &[], &Limits::default(), 0, &[] as &[&str]);
+        encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", flags, net, &[], &Limits::default(), 0, &[] as &[&str], &[]);
         let Ok(Msg::Run(spec)) = decode(&buf) else { panic!() };
         super::resolv_conf(&spec, upstream, (flags & run_flags::DNS_GATEWAY != 0).then_some(super::super::dns::EMBEDDED))
     }
@@ -1737,7 +1831,7 @@ mod tests {
     fn a_resolver_at_one_of_the_hosts_own_addresses_goes_through_the_agent() {
         let mut buf = Vec::new();
         let net = Net { bridge: "kiri0", ip: [172, 17, 0, 2], prefix: 16, gateway: [172, 17, 0, 1], extra_hosts: &[], dns_names: &[], opts: &[] };
-        encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", 0, net, &[], &Limits::default(), 0, &[] as &[&str]);
+        encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", 0, net, &[], &Limits::default(), 0, &[] as &[&str], &[]);
         let Ok(Msg::Run(spec)) = decode(&buf) else { panic!() };
         // TEST-NET-3: no machine running the tests has it.
         assert!(!super::embedded_dns(&spec, &[[203, 0, 113, 53]], false), "a resolver elsewhere is asked directly");
@@ -1749,7 +1843,7 @@ mod tests {
         let spec_with = |flags: u32, opts: &[&str], f: &dyn Fn(&kiri_proto::RunSpec<'_>)| {
             let mut buf = Vec::new();
             let net = Net { bridge: "kiri0", ip: [172, 17, 0, 2], prefix: 16, gateway: [172, 17, 0, 1], extra_hosts: &[], dns_names: &[], opts };
-            encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", flags, net, &[], &Limits::default(), 0, &[] as &[&str]);
+            encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", flags, net, &[], &Limits::default(), 0, &[] as &[&str], &[]);
             let Ok(Msg::Run(spec)) = decode(&buf) else { panic!() };
             f(&spec);
         };

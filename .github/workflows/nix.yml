@@ -39,3 +39,53 @@ jobs:
           grep -Fq 'ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_DATA_DIR=/var/lib/caskel-daemon/data' result/lib/systemd/system/caskel.service
+      # The Nix package intentionally skips privileged integration tests.
+      # Compile *all* test modules; run the unprivileged suite on this hosted
+      # runner. Ownership-preserving layer extraction and DNS bind tests need
+      # the separate privileged Linux acceptance environment.
+      - name: Linux Rust unit tests (unprivileged)
+        run: |
+          nix develop --command cargo test --locked -p kiri -p kiri-proto
+          nix develop --command cargo test --locked -p kiri-init --bin kiri-init -- \
+            --skip linux::dns::tests::every_forwarded_query_has_its_own_port_and_its_answer_goes_back \
+            --skip linux::layers::tests::expansion_is_capped \
+            --skip linux::layers::tests::layer_without_marker_is_replaced \
+            --skip linux::layers::tests::retain_deletes_unused_and_broken_layers \
+            --skip linux::layers::tests::symlink_parent_cannot_escape_layer \
+            --skip linux::layers::tests::whiteout_through_symlink_stays_in_layer
+      # Run the complete agent suite as root on a disposable CI VM.
+      # This covers ownership-preserving tar extraction and privileged DNS
+      # bind tests deliberately excluded from the unprivileged unit step.
+      - name: Linux agent privileged unit tests (ephemeral CI VM)
+        run: |
+          sudo "$(command -v nix)" develop --command cargo test --locked -p kiri-init --bin kiri-init -- --test-threads=1
+      # This runs only on GitHub's disposable VM. Never exercise privileged
+      # container/runtime tests against a user's production Docker host.
+      - name: Linux runtime smoke (ephemeral CI VM)
+        run: |
+          set -euo pipefail
+          test -S /var/run/docker.sock
+          test ! -S /run/kiri/docker.sock
+          before=$(docker ps -q | sort)
+          sudo "$(command -v nix)" profile install --profile /nix/var/nix/profiles/caskel "$(realpath result)"
+          sudo systemctl link /nix/var/nix/profiles/caskel/lib/systemd/system/caskel.service
+          sudo systemctl start caskel.service
+          trap 'sudo systemctl stop caskel.service || true' EXIT
+          sudo systemctl is-active --quiet caskel.service
+          test -S /run/caskel/docker.sock
+          BIN=/nix/var/nix/profiles/caskel/bin/caskel
+          sudo "$BIN" run --rm --network none alpine:3.21 sh -c 'grep -Eq "^Seccomp:[[:space:]]*2" /proc/self/status'
+          profile=$(mktemp)
+          printf '%s\n' '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["mkdir","mkdirat"],"action":"SCMP_ACT_ERRNO"}]}' > "$profile"
+          output=$(sudo "$BIN" run --rm --network none --security-opt "seccomp=$profile" alpine:3.21 mkdir /tmp/caskel-seccomp-test 2>&1 || true)
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -qi 'not permitted'
+          sudo "$BIN" run -d --name caskel-ci-restart --network none alpine:3.21 sleep 1d
+          sudo systemctl restart caskel.service
+          sudo systemctl is-active --quiet caskel.service
+          sudo "$BIN" images | grep -q alpine
+          sudo "$BIN" start caskel-ci-restart
+          sudo "$BIN" inspect -f '{{.State.Running}}' caskel-ci-restart | grep -qx true
+          sudo "$BIN" rm -f caskel-ci-restart
+          after=$(docker ps -q | sort)
+          test "$before" = "$after"

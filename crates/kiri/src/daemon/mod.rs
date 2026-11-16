@@ -26,6 +26,8 @@ pub(crate) mod nfs;
 mod ops;
 pub(crate) mod ports;
 mod pulls;
+mod seccomp;
+mod seccomp_names;
 pub mod time;
 #[cfg(target_os = "macos")]
 mod usb;

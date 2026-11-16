@@ -36,9 +36,13 @@ pub const INPUT_WINDOW: usize = 4 << 20;
 /// `InputConsumed`, which the host waits on, so an older agent would leave
 /// a client's stdin blocked after `INPUT_WINDOW` bytes. 4 added
 /// `UsageQuery`, which has no reply: an older agent's "unexpected" error
-/// would be taken as the reply to the next request.
-pub const PROTOCOL: u16 = 4;
+/// would be taken as the reply to the next request. 5 added `RunSpec::seccomp`,
+/// the container's own seccomp program: an older agent would ignore it and
+/// run the container under the default filter instead of its profile.
+pub const PROTOCOL: u16 = 5;
 
+// `Run` is the one big message and is built and read once per container.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Msg<'a> {
     /// Guest → host, sent once on connect.
@@ -456,6 +460,12 @@ pub struct RunSpec<'a> {
     /// container perms`, `devrule type major minor perms`, `group name`.
     /// Empty from an older daemon.
     pub opts: StrList<'a>,
+    /// The container's own seccomp profile, compiled by the daemon to a
+    /// classic-BPF program for the guest's architecture: instructions of
+    /// eight bytes each (code u16, jt u8, jf u8, k u32; little-endian). Empty
+    /// for the guest's built-in default. Execs run under the same program;
+    /// the guest keeps it with the container.
+    pub seccomp: &'a [u8],
 }
 
 /// cgroup limits (`--memory`, `--cpus`, `--cpu-shares`, `--pids-limit`).
@@ -804,6 +814,7 @@ pub fn encode_run<S: AsRef<str>>(
     limits: &Limits,
     caps: u64,
     opts: &[S],
+    seccomp: &[u8],
 ) {
     frame(out, kind::RUN, |out| {
         put_str(out, id);
@@ -823,6 +834,7 @@ pub fn encode_run<S: AsRef<str>>(
         put_u64(out, caps);
         StrList::put(out, net.opts);
         StrList::put(out, opts);
+        put_bytes(out, seccomp);
     });
 }
 
@@ -888,6 +900,7 @@ impl Msg<'_> {
                 o.extend_from_slice(r.net.opts.raw);
                 put_u32(o, r.opts.count);
                 o.extend_from_slice(r.opts.raw);
+                put_bytes(o, r.seccomp);
             }),
             Msg::Started { id, pid } => frame(out, kind::STARTED, |o| {
                 put_str(o, id);
@@ -1180,6 +1193,7 @@ pub fn decode(frame: &[u8]) -> Result<Msg<'_>, DecodeError> {
                 limits: read_limits(&mut r)?,
                 caps: r.u64()?,
                 opts: StrList::default(),
+                seccomp: &[],
             };
             // Last, and absent from an older daemon.
             if r.remaining() >= 4 {
@@ -1187,6 +1201,9 @@ pub fn decode(frame: &[u8]) -> Result<Msg<'_>, DecodeError> {
             }
             if r.remaining() >= 4 {
                 run.opts = r.list()?;
+            }
+            if r.remaining() >= 4 {
+                run.seccomp = r.bytes()?;
             }
             run
         }),
@@ -1349,7 +1366,7 @@ mod tests {
         let mut buf = Vec::new();
         let net = Net { bridge: "kiri0", ip: [172, 17, 0, 2], prefix: 16, gateway: [172, 17, 0, 1], extra_hosts: &["1.2.3.4 x"], dns_names: &["web"], opts: &["netns=c0", "nameserver=8.8.8.8"] };
         let limits = Limits { memory_max: 256 << 20, cpu_quota: 150_000, cpu_period: 100_000, cpu_weight: 100, pids_max: 64, shm_size: 1 << 20 };
-        encode_run(&mut buf, "c1", &["sha256:top", "sha256:base"], &["echo", "hi"], &["A=1"], "/", "", "c1", 3, net, &["/a\t/b\tro"], &limits, 0b101, &["rlimit\t7\t1024\t2048"]);
+        encode_run(&mut buf, "c1", &["sha256:top", "sha256:base"], &["echo", "hi"], &["A=1"], "/", "", "c1", 3, net, &["/a\t/b\tro"], &limits, 0b101, &["rlimit\t7\t1024\t2048"], &[]);
         let Msg::Run(r) = decode(&buf).unwrap() else { panic!() };
         assert_eq!(r.id, "c1");
         assert_eq!(r.layers.iter().collect::<Vec<_>>(), ["sha256:top", "sha256:base"]);
@@ -1362,10 +1379,41 @@ mod tests {
         assert_eq!(r.net.opts.iter().collect::<Vec<_>>(), ["netns=c0", "nameserver=8.8.8.8"]);
         assert_eq!(net_opts::values(r.net.opts, net_opts::NAMESERVER).collect::<Vec<_>>(), ["8.8.8.8"]);
         assert_eq!(r.opts.iter().collect::<Vec<_>>(), ["rlimit\t7\t1024\t2048"]);
+        assert!(r.seccomp.is_empty());
         // Re-encoding the borrowed view gives identical bytes.
         let mut again = Vec::new();
         Msg::Run(r).encode(&mut again);
         assert_eq!(buf, again);
+    }
+
+    #[test]
+    fn the_protocol_version_covers_the_seccomp_field() {
+        // An agent from before `RunSpec::seccomp` says 4, and the host refuses
+        // it (guest.rs compares the Hello's version with this one).
+        assert!(PROTOCOL >= 5);
+        let mut buf = Vec::new();
+        Msg::Hello(Hello { protocol: PROTOCOL, init_start_ns: 1, ready_ns: 2, mem_total_kib: 3, mem_available_kib: 4 }).encode(&mut buf);
+        let Msg::Hello(h) = decode(&buf).unwrap() else { panic!() };
+        assert_eq!(h.protocol, PROTOCOL);
+    }
+
+    #[test]
+    fn run_spec_carries_a_seccomp_program() {
+        let net = Net { bridge: "", ip: [0; 4], prefix: 0, gateway: [0; 4], extra_hosts: &[] as &[&str], dns_names: &[], opts: &[] };
+        // Two instructions of eight bytes: a binary blob, not text.
+        let program: Vec<u8> = vec![0x20, 0, 0, 0, 4, 0, 0, 0, 0x06, 0, 0, 0, 0, 0, 0xff, 0x7f];
+        let mut buf = Vec::new();
+        encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", 0, net, &[], &Limits::default(), 0, &["group\tvideo"], &program);
+        let Msg::Run(r) = decode(&buf).unwrap() else { panic!() };
+        assert_eq!(r.seccomp, &program[..]);
+        assert_eq!(r.opts.iter().collect::<Vec<_>>(), ["group\tvideo"]);
+        let mut again = Vec::new();
+        Msg::Run(r).encode(&mut again);
+        assert_eq!(buf, again);
+        // A daemon from before the field sends none: the default applies.
+        let Msg::Run(old) = decode(&buf[..buf.len() - 4 - program.len()]).unwrap() else { panic!() };
+        assert!(old.seccomp.is_empty());
+        assert_eq!(old.opts.len(), 1);
     }
 
     #[test]
