@@ -66,6 +66,14 @@ A green Nix compilation is **not** a substitute for privileged Linux integration
 6. Replace upstream visual assets; rewrite project philosophy, development, security, contributor and release docs to match proven behavior.
 7. Develop native Docker migration via **read-only inventory → dry run → reversible per-service cutover**. See [linux-migration-plan.md](linux-migration-plan.md).
 
+## Verified follow-up (November 2026)
+
+- PR #12 removed unreachable Apple guest boot and disk helpers while preserving the Linux host agent transport and `KIRI_AGENT` compatibility.
+- PR #13 removed the retired AppKit backend and 14 unused Mac-only translation keys in each of 37 locales. The optional Linux GTK window still needs its own build/QA milestone.
+- The upstream `scripts/kiri-linux.sh` WSL rootfs assembler references the already removed `contrib/wsl` tree. The Mac `scripts/ci/guest-cache.sh`, `scripts/ci/linux-packages.sh` and upstream release-feed `scripts/ci/test-version.sh` target unsupported release paths; these were retired by the following focused cleanup.
+- **Retain** `guest/kernel/` and `scripts/ci/kernel-source.sh` while auditing GPL-2.0 guest-kernel provenance and historical source-offer obligations. Removing obsolete compiled VM kernel support does **not** justify deleting notices or corresponding-source artifacts automatically.
+- Legacy `packaging/linux/` and `contrib/linux/` are not the Nix-installed Caskel service. Their old `kiri.service` paths must never be installed as Caskel or used to displace a working `/run/docker.sock`; assess and retire or reimplement separately.
+
 ## Repository settings to address separately
 
 At audit time, the GitHub repository description still says “macOS, Windows and Linux”; GitHub Issues are disabled; and `main` is not marked protected. These are repository administration settings, not runtime bugs. Enable Issues if desired for tracking Linux regressions and consider branch protection requiring Linux CI. The GitHub connector cannot apply all repository administration changes.
