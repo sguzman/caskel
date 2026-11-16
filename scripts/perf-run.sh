@@ -12,6 +12,8 @@
 set -eu
 BASE_BIN=$(cd "$1" && pwd); HEAD_BIN=$(cd "$2" && pwd); WORK=$3; RUNS=${4:-400}
 HERE=$(cd "$(dirname "$0")" && pwd)
+# The workflow passes base/main's perf.py so a PR cannot relax its own limits.
+PERF_SCRIPT=${PERF_SCRIPT:-$HERE/perf.py}
 SUDO=; [ "$(id -u)" = 0 ] || SUDO=sudo
 mkdir -p "$WORK"; WORK=$(cd "$WORK" && pwd)
 
@@ -40,10 +42,10 @@ for e in base head; do
     sleep 0.5
   done
 done
-python3 "$HERE/perf.py" sizes --base "$BASE_BIN" --head "$HEAD_BIN" --out "$WORK/sizes.json"
-$SUDO python3 "$HERE/perf.py" bench --runs "$RUNS" --out "$WORK/results.json" \
+python3 "$PERF_SCRIPT" sizes --base "$BASE_BIN" --head "$HEAD_BIN" --out "$WORK/sizes.json"
+$SUDO python3 "$PERF_SCRIPT" bench --runs "$RUNS" --out "$WORK/results.json" \
   --base "$WORK/base-run/docker.sock:$(pid base)" --head "$WORK/head-run/docker.sock:$(pid head)"
 status=0
-python3 "$HERE/perf.py" report "$WORK/results.json" "$WORK/sizes.json" > "$WORK/report.md" || status=$?
+python3 "$PERF_SCRIPT" report "$WORK/results.json" "$WORK/sizes.json" > "$WORK/report.md" || status=$?
 cat "$WORK/report.md"
 exit $status
