@@ -1,17 +1,12 @@
-//! Runs Kiri's Linux guest: in a VM with Apple's Virtualization.framework on
-//! macOS, and as a plain root process beside the daemon on Linux, where the
-//! host's own kernel runs the containers. Both give the daemon the same
-//! types: a guest that dials in, and ports to connect to or listen on.
+//! Linux host runtime agent transport: Caskel runs containers directly on
+//! the host kernel. The agent is a managed root process connected to the
+//! daemon via private Unix sockets; no guest VM or Apple framework is used.
+
+#[cfg(not(target_os = "linux"))]
+compile_error!("Caskel's agent transport supports Linux only");
 
 mod stop;
-
-#[cfg(target_os = "macos")]
-mod apple;
-#[cfg(target_os = "macos")]
-pub use apple::*;
-
-#[cfg(any(target_os = "linux", all(test, unix)))]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[cfg(target_os = "linux")]
 mod process;
 #[cfg(target_os = "linux")]
 pub use process::*;

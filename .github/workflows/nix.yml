@@ -45,6 +45,14 @@ jobs:
       # the separate privileged Linux acceptance environment.
       - name: Check Linux-only xtask wrapper
         run: nix develop --command cargo check --locked -p xtask
+      - name: Check Linux-only CLI usage
+        run: |
+          help=$(./result/bin/caskel 2>&1 || true)
+          printf '%s\n' "$help" | grep -Fq 'usage: caskel COMMAND'
+          ! printf '%s\n' "$help" | grep -Eq 'caskel (setup|update|import|bench|boot)([[:space:]]|$)'
+          ! printf '%s\n' "$help" | grep -Eq 'runkiri|Kiri Dev|kiri-win'
+      - name: Linux agent transport unit tests
+        run: nix develop --command cargo test --locked -p kiri-vmm
       - name: Linux Rust unit tests (unprivileged)
         run: |
           nix develop --command cargo test --locked -p kiri -p kiri-proto
