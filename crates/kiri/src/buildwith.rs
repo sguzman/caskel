@@ -52,7 +52,7 @@ impl With {
     pub fn parse(s: &str) -> Option<With> {
         match s {
             "docker" => Some(With::Docker),
-            "kiri" => Some(With::Kiri),
+            "kiri" | "caskel" => Some(With::Kiri),
             _ => None,
         }
     }
@@ -423,7 +423,7 @@ pub fn cli(args: &[String]) -> io::Result<()> {
     let p = places()?;
     let other = other_engine();
     if let Some(a) = args.first() {
-        let with = With::parse(a).ok_or_else(|| io::Error::other("usage: kiri build-with [docker|kiri]"))?;
+        let with = With::parse(a).ok_or_else(|| io::Error::other("usage: caskel build-with [docker|caskel]"))?;
         p.choose(with)?;
         if with == With::Kiri && !p.ready() {
             crate::builds::ensure_builder();
