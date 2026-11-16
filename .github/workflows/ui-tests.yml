@@ -36,3 +36,33 @@ jobs:
           printf '#!/bin/sh\nexec google-chrome --no-sandbox "$@"\n' > "$RUNNER_TEMP/chrome"
           chmod +x "$RUNNER_TEMP/chrome"
           CHROME="$RUNNER_TEMP/chrome" python3 scripts/ui-test.py
+
+  gtk-build:
+    name: Compile the branded Linux GTK window
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+      - name: Install Linux GTK/WebKitGTK development libraries
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev
+      - name: Compile Caskel with the optional window feature
+        run: |
+          # Nix's pkg-config only searches Nix-store paths by default;
+          # these system development libraries were installed with apt.
+          # Scope the system pkg-config paths to this disposable CI job.
+          nix develop --command env \
+            PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+            PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 \
+            PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 \
+            cargo check --locked -p caskel --features window
+          # The branded GTK source embeds the original Caskel SVG. It must
+          # never include old Kiri binary artwork in its Linux window.
+          grep -Fq 'caskel-mark.svg' crates/kiri/src/ui/gtk.rs
+          test -f brand/caskel-mark.svg
+          ! grep -Fq 'kiri-app-icon' crates/kiri/src/ui/gtk.rs
