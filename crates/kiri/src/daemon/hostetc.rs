@@ -36,7 +36,7 @@ impl Who {
 /// Where the files are kept: `etc` in Kiri's data folder, which the VM
 /// sees with the rest of the Mac.
 pub fn dir() -> io::Result<PathBuf> {
-    Ok(kiri_image::Store::default_root()?.join("etc"))
+    Ok(caskel_image::Store::default_root()?.join("etc"))
 }
 
 /// One of `FILES`, written as it should read now; its path.

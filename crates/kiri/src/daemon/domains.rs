@@ -347,7 +347,7 @@ fn serve(mut client: TcpStream, engine: &Engine) -> io::Result<()> {
 /// Reads the request head, finds the container its Host names and connects
 /// to it. `None` once it has answered by itself (no such container, an
 /// unreachable one, or a client that went away).
-fn route(client: &mut impl ReadWrite, engine: &Engine, scheme: &str) -> io::Result<Option<(Vec<u8>, kiri_vmm::VsockStream)>> {
+fn route(client: &mut impl ReadWrite, engine: &Engine, scheme: &str) -> io::Result<Option<(Vec<u8>, caskel_agent_transport::VsockStream)>> {
     let mut head = Vec::with_capacity(2048);
     let mut buf = [0u8; 4096];
     let end = loop {

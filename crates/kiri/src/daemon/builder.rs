@@ -21,8 +21,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-use kiri_image::{Client, Platform, Reference};
-use kiri_proto::Stream;
+use caskel_image::{Client, Platform, Reference};
+use caskel_proto::Stream;
 
 use super::api::{self, Next};
 use super::engine::{Engine, Error, ExecConfig, Status};
@@ -167,7 +167,7 @@ pub fn set_settings(req: &Request) -> Result<(), Error> {
 // --- The container -------------------------------------------------------
 
 /// The BuildKit image, pulled (by [`PINNED`]) if it isn't here yet.
-fn ensure_image(engine: &Engine, say: &mut dyn FnMut(&str)) -> Result<kiri_image::Image, Error> {
+fn ensure_image(engine: &Engine, say: &mut dyn FnMut(&str)) -> Result<caskel_image::Image, Error> {
     if let Some(i) = engine.image(IMAGE)? {
         return Ok(i);
     }
@@ -182,7 +182,7 @@ fn ensure_image(engine: &Engine, say: &mut dyn FnMut(&str)) -> Result<kiri_image
         .pull(&engine.store, &reference, &Platform::host_linux(), &|_| {})
         .map_err(|e| Error::Io(io::Error::other(format!("pulling {IMAGE}: {e}"))))?;
     let name = Reference::parse(IMAGE).map(|r| r.short()).unwrap_or_else(|_| IMAGE.to_owned());
-    engine.store.put_image(kiri_image::Image { name: name.clone(), ..pulled.clone() })?;
+    engine.store.put_image(caskel_image::Image { name: name.clone(), ..pulled.clone() })?;
     // Known by its tag only: the blobs stay, the tagged record uses them.
     if pulled.name != name {
         let _ = engine.store.remove_image(&pulled.name);
@@ -240,7 +240,7 @@ fn write_config(engine: &Engine, id: &str) {
     if let Err(e) = copy_in(engine, id, "/etc", &mut io::Cursor::new(archive)) {
         crate::diag::warn!("builder config not written", error = format!("{e:?}"));
     }
-    if kiri_vmm::rosetta_installed() {
+    if caskel_agent_transport::rosetta_installed() {
         hide_amd64_qemu(engine, id);
     }
 }
@@ -416,14 +416,14 @@ fn tar(entries: &[(&str, Option<&[u8]>)]) -> Vec<u8> {
 
 /// Unpacks a tar archive into a directory of the container, as `docker cp` does.
 fn copy_in(engine: &Engine, id: &str, path: &str, archive: &mut dyn Read) -> Result<(), Error> {
-    let stream = engine.copy(id, kiri_proto::copy_op::IN, path, kiri_proto::copy_flags::CHUNKED)?;
+    let stream = engine.copy(id, caskel_proto::copy_op::IN, path, caskel_proto::copy_flags::CHUNKED)?;
     let mut to_guest = std::fs::File::from(stream.fd.try_clone()?);
     api::send_chunks(archive, &mut to_guest)?;
     let mut from_guest = std::fs::File::from(stream.fd.try_clone()?);
     let frame = api::guest_frame(&mut from_guest)?;
-    match kiri_proto::decode(&frame) {
-        Ok(kiri_proto::Msg::CopyDone) => Ok(()),
-        Ok(kiri_proto::Msg::Error(m)) => Err(api::copy_error(m)),
+    match caskel_proto::decode(&frame) {
+        Ok(caskel_proto::Msg::CopyDone) => Ok(()),
+        Ok(caskel_proto::Msg::Error(m)) => Err(api::copy_error(m)),
         Ok(other) => Err(Error::Io(io::Error::other(format!("unexpected copy reply: {other:?}")))),
         Err(e) => Err(Error::Io(io::Error::other(format!("bad copy reply: {e:?}")))),
     }
@@ -628,13 +628,13 @@ impl Options {
 /// The CLI's `X-Registry-Config` (base64 JSON: server → {username,
 /// password, identitytoken, …}) as a docker config.json for buildctl.
 fn registry_config(header: &str) -> Option<Vec<u8>> {
-    let raw = kiri_image::b64::decode(header)?;
+    let raw = caskel_image::b64::decode(header)?;
     let v: Value = serde_json::from_slice(&raw).ok()?;
     let mut auths = serde_json::Map::new();
     for (server, a) in v.as_object()? {
         let mut e = serde_json::Map::new();
         if let (Some(u), Some(p)) = (a["username"].as_str(), a["password"].as_str()) {
-            e.insert("auth".into(), kiri_image::b64::encode(format!("{u}:{p}").as_bytes()).into());
+            e.insert("auth".into(), caskel_image::b64::encode(format!("{u}:{p}").as_bytes()).into());
         } else if let Some(t) = a["auth"].as_str().filter(|t| !t.is_empty()) {
             e.insert("auth".into(), t.into());
         }
@@ -769,7 +769,7 @@ pub fn build(req: &Request, engine: &Arc<Engine>, w: &mut UnixStream, r: &mut Bu
     Ok(Next::Close)
 }
 
-fn run(req: &Request, engine: &Engine, o: &mut Options, r: &mut BufReader<UnixStream>, out: &mut Out<'_>, probe: &UnixStream) -> Result<Vec<kiri_image::Image>, String> {
+fn run(req: &Request, engine: &Engine, o: &mut Options, r: &mut BufReader<UnixStream>, out: &mut Out<'_>, probe: &UnixStream) -> Result<Vec<caskel_image::Image>, String> {
     let quiet = o.quiet;
     let id = ensure_running(engine, &mut |m| {
         if !quiet {
@@ -829,7 +829,7 @@ fn send_context(engine: &Engine, id: &str, dir: &str, req: &Request, r: &mut Buf
 
 /// Runs the build: its progress (stderr) to the client as it comes, the
 /// image archive (stdout) into Kiri's store as it comes.
-fn buildctl(engine: &Engine, id: &str, dir: &str, o: &Options, env: Vec<String>, out: &mut Out<'_>, probe: &UnixStream) -> Result<Vec<kiri_image::Image>, String> {
+fn buildctl(engine: &Engine, id: &str, dir: &str, o: &Options, env: Vec<String>, out: &mut Out<'_>, probe: &UnixStream) -> Result<Vec<caskel_image::Image>, String> {
     let argv = o.argv(dir);
     if !o.build_id.is_empty() {
         CANCELLABLE.lock().unwrap_or_else(|e| e.into_inner()).push((o.build_id.clone(), id.to_owned(), dir.to_owned()));
@@ -850,14 +850,14 @@ pub fn cancel(req: &Request, engine: &Engine) -> Result<Value, Error> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn buildctl_run(engine: &Engine, id: &str, dir: &str, o: &Options, argv: Vec<String>, env: Vec<String>, out: &mut Out<'_>, probe: &UnixStream) -> Result<Vec<kiri_image::Image>, String> {
+fn buildctl_run(engine: &Engine, id: &str, dir: &str, o: &Options, argv: Vec<String>, env: Vec<String>, out: &mut Out<'_>, probe: &UnixStream) -> Result<Vec<caskel_image::Image>, String> {
     let exec = engine.exec_create(id, internal_exec(&argv, false, env)).map_err(|e| format!("{e:?}"))?;
     let (_, rx) = engine.exec_start(&exec).map_err(|e| format!("{e:?}"))?;
     let mut cancelled = false;
     let mut tail: Vec<String> = Vec::new();
     let loaded = std::thread::scope(|s| {
         let (tx, lrx) = mpsc::sync_channel::<Vec<u8>>(64);
-        let loader = s.spawn(move || kiri_image::archive::load(&engine.store, ChanReader { rx: lrx, buf: Vec::new(), at: 0 }));
+        let loader = s.spawn(move || caskel_image::archive::load(&engine.store, ChanReader { rx: lrx, buf: Vec::new(), at: 0 }));
         let mut tx = Some(tx);
         let mut partial = Vec::new();
         loop {
@@ -1124,9 +1124,9 @@ mod tests {
 
     #[test]
     fn registry_config_becomes_docker_config() {
-        let header = kiri_image::b64::encode(br#"{"https://index.docker.io/v1/":{"username":"u","password":"p"},"ghcr.io":{"identitytoken":"tok"},"empty":{}}"#);
+        let header = caskel_image::b64::encode(br#"{"https://index.docker.io/v1/":{"username":"u","password":"p"},"ghcr.io":{"identitytoken":"tok"},"empty":{}}"#);
         let v: Value = serde_json::from_slice(&registry_config(&header).unwrap()).unwrap();
-        assert_eq!(v["auths"]["https://index.docker.io/v1/"]["auth"], kiri_image::b64::encode(b"u:p"));
+        assert_eq!(v["auths"]["https://index.docker.io/v1/"]["auth"], caskel_image::b64::encode(b"u:p"));
         assert_eq!(v["auths"]["ghcr.io"]["identitytoken"], "tok");
         assert!(v["auths"].get("empty").is_none());
     }
