@@ -1,11 +1,8 @@
-//! `kiri ui`: a tiny native window over `kiri daemon`.
+//! `caskel ui`: the optional Linux GTK/WebKit window for Caskel.
 //!
-//! The system's own WebKit in a native window: AppKit through objc2 on the
-//! Mac (`mac.rs`), GTK on Linux (`gtk.rs`). No UI framework and no bundled
-//! browser. The page is a single embedded HTML file
-//! with hand-written CSS. It sends JSON commands with
-//! `webkit.messageHandlers.kiri.postMessage('{"cmd":"start"}')`, and the
-//! engine thread pushes JSON events back with `kiri.on({...})`.
+//! GTK hosts the embedded HTML/CSS page using the system WebKitGTK.
+//! The page sends JSON commands to the engine and receives JSON events.
+//! No bundled browser or macOS AppKit backend is needed.
 
 use std::fmt::Write as _;
 use std::io;
@@ -13,21 +10,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
-// The window itself, per system; everything else here is shared.
-#[cfg(target_os = "macos")]
-mod mac;
-#[cfg(target_os = "macos")]
-use mac as window;
-#[cfg(target_os = "linux")]
 mod gtk;
-#[cfg(target_os = "linux")]
 use gtk as window;
 pub use window::run;
-#[cfg(target_os = "macos")]
-use crate::{import, setup, update};
-#[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "linux")]
 use linux::{import, setup, update};
 
 mod assemble;
@@ -387,17 +373,11 @@ fn path_escape(s: &str) -> String {
 
 /// Opens a URL, file or folder the way the system would on a double-click.
 pub(crate) fn open(target: impl AsRef<std::ffi::OsStr>) {
-    let opener = if cfg!(target_os = "macos") { "/usr/bin/open" } else { "xdg-open" };
-    let _ = std::process::Command::new(opener).arg(target).spawn();
+    let _ = std::process::Command::new("xdg-open").arg(target).spawn();
 }
 
-/// Shows a file selected in its folder: Finder on the Mac, the file manager
-/// on Linux (or just the folder, when it can't select).
+/// Shows a file selected in its Linux file manager (or opens its folder).
 pub(crate) fn reveal(path: &std::path::Path) {
-    if cfg!(target_os = "macos") {
-        let _ = std::process::Command::new("/usr/bin/open").arg("-R").arg(path).spawn();
-        return;
-    }
     let uri = format!("file://{}", path.display());
     let shown = std::process::Command::new("gdbus")
         .args(["call", "--session", "--dest", "org.freedesktop.FileManager1", "--object-path", "/org/freedesktop/FileManager1"])
@@ -411,12 +391,10 @@ pub(crate) fn reveal(path: &std::path::Path) {
     }
 }
 
-/// Kiri's folder in the home directory, ~/.kiri: the window's settings and
-/// files. On the Mac the engine's socket is in it too; on Linux the engine is
-/// a system service with its socket in /run/kiri. `KIRI_SOCKET` moves it, as
-/// on the Mac (the tests use that).
+/// Caskel's local UI state; Linux normally uses its own service socket.
+/// Preserve the `KIRI_SOCKET` compatibility override used by tests.
 pub(crate) fn state_dir() -> Option<std::path::PathBuf> {
-    if cfg!(target_os = "linux") && std::env::var_os("KIRI_SOCKET").is_none() {
+    if std::env::var_os("KIRI_SOCKET").is_none() {
         return std::env::var_os("HOME").map(|h| std::path::Path::new(&h).join(crate::flavor::STATE.get()));
     }
     client::socket().ok()?.parent()?.parent().map(std::path::Path::to_path_buf)
@@ -1398,14 +1376,8 @@ mod tests {
     fn lists_installed_fonts() {
         let all = super::window::font_families(false);
         let mono = super::window::font_families(true);
-        // Fonts every Mac has; on Linux, whatever fontconfig lists.
-        if cfg!(target_os = "macos") {
-            assert!(all.iter().any(|f| f == "Helvetica Neue"), "{all:?}");
-            assert!(mono.iter().any(|f| f == "Menlo"), "{mono:?}");
-            assert!(!mono.iter().any(|f| f == "Helvetica Neue"));
-        } else {
-            assert!(!all.is_empty() && !mono.is_empty() && mono.len() < all.len(), "{all:?} {mono:?}");
-        }
+        // The Linux GTK backend obtains font families through fontconfig.
+        assert!(!all.is_empty() && !mono.is_empty() && mono.len() < all.len(), "{all:?} {mono:?}");
         assert!(all.iter().chain(&mono).all(|f| !f.starts_with('.')));
         assert!(all.windows(2).all(|w| w[0].to_lowercase() < w[1].to_lowercase()));
     }
@@ -1996,12 +1968,6 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             window::drag();
             Ok(())
         }
-        // ⌘W when the built-in terminal doesn't have the focus.
-        #[cfg(target_os = "macos")]
-        "closewindow" => {
-            window::close_window();
-            Ok(())
-        }
         "zoom" => {
             window::zoom();
             Ok(())
@@ -2109,11 +2075,6 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             std::thread::spawn(|| update_check(false));
             recheck::start(|| feed_check(false));
             ask_language();
-            // The first time the app opens: ask, once, whether to use *.kiri.local (the Mac only, so far).
-            if cfg!(target_os = "macos") && !crate::flavor::dev() && !crate::daemon::dns::installed() && prefs()["domainsAsked"] != true {
-                set_pref("domainsAsked", true.into());
-                emit(r#"{"type":"welcome"}"#.to_owned());
-            }
             // Another engine is here and nobody has chosen: ask once which
             // builder docker build uses (after the welcome, if that shows).
             std::thread::spawn(|| {
