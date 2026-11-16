@@ -7,10 +7,10 @@ pub fn engine_down() -> std::io::Error {
     let socket = std::path::Path::new(crate::client::SERVICE_SOCKET);
     std::io::Error::other(match std::os::unix::net::UnixStream::connect(socket) {
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-            "This session can't reach Kiri yet: log out and back in once, so your account's new kiri group applies"
+            "This session cannot access the Caskel socket: check /run/caskel/docker.sock permissions and your service access policy"
         }
-        _ if socket.exists() => "Kiri's engine isn't answering: sudo systemctl restart kiri",
-        _ => "Kiri's engine isn't running: sudo systemctl enable --now kiri",
+        _ if socket.exists() => "Caskel's engine isn't answering: inspect caskel.service with systemctl status caskel.service",
+        _ => "Caskel's engine isn't running: start caskel.service explicitly when ready",
     })
 }
 

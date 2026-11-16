@@ -87,7 +87,11 @@ impl fmt::Display for Name {
     }
 }
 
-/// The app's name, as the window and Finder show it.
+/// Linux public product identity. Legacy Kiri state/agent identities are
+/// intentionally not changed by this display-only constant.
+#[cfg(target_os = "linux")]
+pub const APP: Name = Name("Caskel", "Caskel Dev");
+#[cfg(not(target_os = "linux"))]
 pub const APP: Name = Name("Kiri", "Kiri Dev");
 /// Under HOME: the daemon's socket and state, the window's settings.
 #[cfg(target_os = "linux")]
@@ -120,6 +124,8 @@ mod tests {
         assert!(!super::dev());
         let (state, context) = if cfg!(target_os = "linux") { (".caskel", "caskel") } else { (".kiri", "kiri") };
         assert_eq!((super::STATE.get(), super::CONTEXT.to_string()), (state, context.to_owned()));
+        #[cfg(target_os = "linux")]
+        assert_eq!(super::APP.get(), "Caskel");
     }
 
     #[test]
