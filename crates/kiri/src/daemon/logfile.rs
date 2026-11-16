@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use kiri_proto::Stream;
+use caskel_proto::Stream;
 
 pub const DEFAULT_MAX_SIZE: u64 = 10 << 20;
 pub const DEFAULT_MAX_FILE: u32 = 3;

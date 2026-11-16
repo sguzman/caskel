@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use kiri_image::{Image, Reference};
+use caskel_image::{Image, Reference};
 
 use super::engine::Engine;
 
@@ -149,7 +149,7 @@ pub fn config(engine: &Engine) -> String {
     for i in engine.store.images().unwrap_or_default() {
         if let Ok(r) = Reference::parse(&i.name)
             && !registries.contains(&r.registry)
-            && !kiri_image::reference::is_local(&r.registry)
+            && !caskel_image::reference::is_local(&r.registry)
         {
             registries.push(r.registry);
         }
@@ -219,7 +219,7 @@ enum Found {
 }
 
 /// An image's manifest as Kiri serves it, and its digest.
-fn manifest(store: &kiri_image::Store, i: &Image) -> Option<(Vec<u8>, String)> {
+fn manifest(store: &caskel_image::Store, i: &Image) -> Option<(Vec<u8>, String)> {
     let config_size = std::fs::metadata(store.blob_path(&i.config_digest).ok()?).ok()?.len();
     let m = json!({
         "schemaVersion": 2,
@@ -228,7 +228,7 @@ fn manifest(store: &kiri_image::Store, i: &Image) -> Option<(Vec<u8>, String)> {
         "layers": i.layers.iter().map(|l| json!({"mediaType": l.media_type, "digest": l.digest, "size": l.size})).collect::<Vec<Value>>(),
     });
     let bytes = serde_json::to_vec(&m).ok()?;
-    let digest = kiri_image::store::sha256_digest(&bytes);
+    let digest = caskel_image::store::sha256_digest(&bytes);
     Some((bytes, digest))
 }
 

@@ -1848,7 +1848,7 @@ mod spec_tests {
 
     #[test]
     fn unconfined_sets_the_flag_and_a_profile_does_not() {
-        use kiri_proto::run_flags::NO_SECCOMP;
+        use caskel_proto::run_flags::NO_SECCOMP;
         assert_ne!(spec(&["seccomp=unconfined"], 0, false).security_flags() & NO_SECCOMP, 0);
         assert_eq!(spec(&[DENY_MKDIR], 0, false).security_flags() & NO_SECCOMP, 0);
         assert_eq!(spec(&[], 0, false).security_flags() & NO_SECCOMP, 0);
