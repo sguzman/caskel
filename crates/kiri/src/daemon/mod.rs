@@ -133,7 +133,7 @@ pub fn run(_args: &[String]) -> io::Result<()> {
         None => None,
     };
 
-    let store = kiri_image::Store::open(kiri_image::Store::default_root()?)?;
+    let store = caskel_image::Store::open(caskel_image::Store::default_root()?)?;
     let engine = engine::Engine::boot(store).inspect_err(|e| diag::error!("engine did not start", error = e))?;
     diag::info!("engine ready", version = env!("CARGO_PKG_VERSION"), ms = t0.elapsed().as_millis(), socket = format!("unix://{}", socket.display()));
     // Crash files from earlier runs, if the person said they may go.
@@ -142,7 +142,7 @@ pub fn run(_args: &[String]) -> io::Result<()> {
     // own disk already.
     #[cfg(target_os = "macos")]
     finder(&engine);
-    kiri_image::set_proxy_source(proxy::for_registry);
+    caskel_image::set_proxy_source(proxy::for_registry);
     // The managed BuildKit stops itself when builds have been idle a while.
     builder::watch(engine.clone());
     // A Kubernetes node the engine restarted gets its kubectl context.

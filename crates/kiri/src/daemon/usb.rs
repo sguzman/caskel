@@ -150,12 +150,12 @@ pub fn attach(req: &Request, engine: &Arc<Engine>, w: &mut UnixStream, r: &mut B
 #[allow(clippy::too_many_arguments)]
 fn attach_claimed(location: &str, name: &str, speed: u32, devid: u32, engine: &Arc<Engine>, w: &mut UnixStream, r: &mut BufReader<UnixStream>) -> io::Result<Next> {
     let (location, name) = (location.to_owned(), name.to_owned());
-    let opened = (|| -> io::Result<(kiri_vmm::VsockStream, i32)> {
+    let opened = (|| -> io::Result<(caskel_agent_transport::VsockStream, i32)> {
         let vm = engine.vm()?;
         // A VM this request just woke may not have its agent listening yet.
         let mut tries = 0;
         let stream = loop {
-            match vm.connect(kiri_proto::USB_PORT) {
+            match vm.connect(caskel_proto::USB_PORT) {
                 Ok(s) => break s,
                 Err(_) if tries < 50 => {
                     tries += 1;

@@ -58,7 +58,7 @@ jobs:
             docker run --rm -v "$PWD/$e:/src" -v "$RUNNER_TEMP/$e-bin:/out" \
               -v kiri-perf-target:/t -v kiri-perf-cargo:/usr/local/cargo/registry \
               -w /src -e CARGO_TARGET_DIR=/t rust:1-alpine sh -c \
-              'apk add -q musl-dev && cargo build --release --locked -p kiri -p kiri-init && cp /t/release/kiri /t/release/kiri-init /out/'
+              'apk add -q musl-dev && if grep -Fq "name = \"caskel\"" crates/kiri/Cargo.toml; then engine=caskel; agent=caskel-init; else engine=kiri; agent=kiri-init; fi; cargo build --release --locked -p "$engine" -p "$agent" && cp "/t/release/$engine" /out/kiri && cp "/t/release/$agent" /out/kiri-init'
           done
           ls -l "$RUNNER_TEMP"/base-bin "$RUNNER_TEMP"/head-bin
       - name: Install strace

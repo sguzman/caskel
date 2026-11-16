@@ -1159,7 +1159,7 @@ fn pulling() -> std::sync::MutexGuard<'static, Vec<Pulling>> {
 /// The page asked for a pull: noted, so Cancel finds it even while it waits.
 fn asked_to_pull(name: &str) {
     static RUN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let Ok(r) = kiri_image::Reference::parse(name.trim()) else { return };
+    let Ok(r) = caskel_image::Reference::parse(name.trim()) else { return };
     let run = RUN.fetch_add(1, Ordering::Relaxed);
     pulling().push(Pulling { run, name: r.short(), taken: false, conn: None, cancelled: false });
 }
@@ -1185,7 +1185,7 @@ fn pull(name: String) {
     let op = diag::op();
     let spawned = std::thread::Builder::new().name("kiri-pull".into()).spawn(move || {
         let _op = op.map(diag::enter_op);
-        let reference = match kiri_image::Reference::parse(name.trim()) {
+        let reference = match caskel_image::Reference::parse(name.trim()) {
             Ok(r) => r.short(),
             Err(e) => return emit(notice("error", &e.to_string())),
         };

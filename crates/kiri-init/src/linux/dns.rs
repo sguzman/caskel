@@ -466,7 +466,7 @@ impl Dns {
         if self.relay_down_until.is_some_and(|t| Instant::now() < t) {
             return None;
         }
-        let Ok(stream) = super::transport::dial_within(kiri_proto::DNS_RELAY_PORT, RELAY_CONNECT) else {
+        let Ok(stream) = super::transport::dial_within(caskel_proto::DNS_RELAY_PORT, RELAY_CONNECT) else {
             self.relay_down_until = Some(Instant::now() + RELAY_BACKOFF);
             return None;
         };

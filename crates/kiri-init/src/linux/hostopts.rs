@@ -12,7 +12,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::Path;
 
-use kiri_proto::StrList;
+use caskel_proto::StrList;
 
 use super::devices::{self, Rule};
 use super::sys;
@@ -315,7 +315,7 @@ mod tests {
 
     fn list(lines: &[&str]) -> Vec<u8> {
         let mut buf = Vec::new();
-        kiri_proto::encode_retain(&mut buf, lines);
+        caskel_proto::encode_retain(&mut buf, lines);
         buf
     }
 
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn parses_and_refuses() {
         let buf = list(&["rlimit\t7\t65536\t65536", "sysctl\tnet\tnet/core/somaxconn\t1024", "device\t/dev/fuse\t/dev/fuse\trwm", "devrule\tc\t10\t229\trwm", "group\tvideo"]);
-        let kiri_proto::Msg::Retain(l) = kiri_proto::decode(&buf).unwrap() else { panic!() };
+        let caskel_proto::Msg::Retain(l) = caskel_proto::decode(&buf).unwrap() else { panic!() };
         let o = parse(l).unwrap();
         assert_eq!(o.rlimits, [(7, 65536, 65536)]);
         assert_eq!((o.sysctls[0].ns, o.sysctls[0].path.as_str()), (Ns::Net, "net/core/somaxconn"));
@@ -343,7 +343,7 @@ mod tests {
         assert_eq!(o.groups, ["video"]);
         for bad in ["sysctl\tnet\tkernel/core_pattern\t|x", "sysctl\tipc\tkernel/../x\t1", "sysctl\tuts\tkernel/hostname\tx", "rlimit\t99\t1\t1", "device\tdev\t/x\trwm", "nope"] {
             let buf = list(&[bad]);
-            let kiri_proto::Msg::Retain(l) = kiri_proto::decode(&buf).unwrap() else { panic!() };
+            let caskel_proto::Msg::Retain(l) = caskel_proto::decode(&buf).unwrap() else { panic!() };
             assert!(parse(l).is_err(), "{bad}");
         }
     }

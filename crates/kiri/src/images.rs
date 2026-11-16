@@ -4,7 +4,7 @@ use std::io;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use kiri_image::{Client, Platform, Progress, Reference, Store};
+use caskel_image::{Client, Platform, Progress, Reference, Store};
 
 fn store() -> io::Result<Store> {
     Store::open(Store::default_root()?)

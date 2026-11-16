@@ -684,16 +684,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "kiri"
+name = "caskel"
 version = "0.0.0"
 dependencies = [
  "flate2",
  "gtk",
  "javascriptcore-rs",
- "kiri-image",
- "kiri-proto",
- "kiri-share-proto",
- "kiri-vmm",
+ "caskel-image",
+ "caskel-proto",
+ "caskel-share-proto",
+ "caskel-agent-transport",
  "libc",
  "rcgen",
  "rustls",
@@ -707,7 +707,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kiri-image"
+name = "caskel-image"
 version = "0.0.0"
 dependencies = [
  "serde",
@@ -718,22 +718,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "kiri-init"
+name = "caskel-init"
 version = "0.0.0"
 dependencies = [
  "flate2",
- "kiri-proto",
+ "caskel-proto",
  "libc",
  "ruzstd",
  "tar",
 ]
 
 [[package]]
-name = "kiri-proto"
+name = "caskel-proto"
 version = "0.0.0"
 
 [[package]]
-name = "kiri-share-proto"
+name = "caskel-share-proto"
 version = "0.0.0"
 dependencies = [
  "hmac",
@@ -741,7 +741,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kiri-vmm"
+name = "caskel-agent-transport"
 version = "0.0.0"
 dependencies = [
  "libc",

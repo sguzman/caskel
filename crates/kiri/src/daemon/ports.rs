@@ -437,7 +437,7 @@ pub fn start(vm: Arc<VmLink>, id: &str, bindings: &[Binding], target_ip: [u8; 4]
         let all = udp.iter().map(|(b, ip, port, _)| (b, ip, *port, true)).chain(listeners.iter().map(|(b, ip, port, _)| (b, ip, *port, false)));
         let mut published = Ok(false);
         for (b, ip, port, is_udp) in all.filter(|(_, ip, ..)| kernel_forwards(ip)) {
-            let p = kiri_proto::Publish { id, udp: is_udp, host_ip: kernel_host_ip(ip).expect("checked IPv4 binding"), host_port: port, to_ip: target_ip, to_port: b.container_port };
+            let p = caskel_proto::Publish { id, udp: is_udp, host_ip: kernel_host_ip(ip).expect("checked IPv4 binding"), host_port: port, to_ip: target_ip, to_port: b.container_port };
             published = vm.publish(p).map(|()| true);
             if published.is_err() {
                 break;
@@ -508,7 +508,7 @@ fn publish_nat(vm: &VmLink, id: &str, container_ports: &[u16], target_ip: [u8; 4
             let _ = vm.unpublish(id);
             return Err(io::Error::other("no free guest port"));
         };
-        let publish = kiri_proto::Publish { id, udp: false, host_ip: guest_ip, host_port: p.0, to_ip: target_ip, to_port };
+        let publish = caskel_proto::Publish { id, udp: false, host_ip: guest_ip, host_port: p.0, to_ip: target_ip, to_port };
         if let Err(e) = vm.publish(publish) {
             let _ = vm.unpublish(id);
             return Err(e);
@@ -525,7 +525,7 @@ struct UdpSession {
     last: Instant,
     reader: JoinHandle<()>,
     // Keeps the connection open until the session ends.
-    _guest: kiri_vmm::VsockStream,
+    _guest: caskel_agent_transport::VsockStream,
 }
 
 impl UdpSession {
@@ -674,7 +674,7 @@ fn accept_loop(listener: &TcpListener, wake: &OwnedFd, vm: &Arc<VmLink>, ip: [u8
 /// One client connection: a vsock stream to the agent, the target address,
 /// then bytes both ways until both sides are done.
 /// A vsock stream to the guest relay, already pointed at `ip:port`.
-pub fn open_relay(vm: &VmLink, ip: [u8; 4], port: u16) -> io::Result<kiri_vmm::VsockStream> {
+pub fn open_relay(vm: &VmLink, ip: [u8; 4], port: u16) -> io::Result<caskel_agent_transport::VsockStream> {
     let guest = vm.connect(RELAY_PORT)?;
     let mut header = [0u8; 6];
     header[..4].copy_from_slice(&ip);
@@ -684,7 +684,7 @@ pub fn open_relay(vm: &VmLink, ip: [u8; 4], port: u16) -> io::Result<kiri_vmm::V
 }
 
 /// `open_relay` on the agent's framed port, where it has one; true if so.
-fn open_framed_relay(vm: &VmLink, ip: [u8; 4], port: u16) -> io::Result<(kiri_vmm::VsockStream, bool)> {
+fn open_framed_relay(vm: &VmLink, ip: [u8; 4], port: u16) -> io::Result<(caskel_agent_transport::VsockStream, bool)> {
     if !NO_FRAMED_RELAY.load(Ordering::Relaxed) {
         match vm.connect(RELAY_FRAMED_PORT) {
             Ok(guest) => {
@@ -935,13 +935,13 @@ pub const HOST_BOUND_PORT: u32 = 1026;
 
 /// One host-bound connection from a container: the guest sends
 /// `ip[4] port[2]` (always 127.0.0.1 today), and we connect there on the Mac.
-pub fn serve_host_bound(stream: kiri_vmm::VsockStream) {
+pub fn serve_host_bound(stream: caskel_agent_transport::VsockStream) {
     let _ = std::thread::Builder::new().name("kiri-host-bound".into()).spawn(move || {
         let _ = host_bound(stream);
     });
 }
 
-fn host_bound(stream: kiri_vmm::VsockStream) -> io::Result<()> {
+fn host_bound(stream: caskel_agent_transport::VsockStream) -> io::Result<()> {
     let mut from_guest = std::fs::File::from(stream.fd.try_clone()?);
     let mut header = [0u8; 6];
     from_guest.read_exact(&mut header)?;
@@ -987,7 +987,7 @@ fn ssh_auth_sock() -> Option<std::path::PathBuf> {
 }
 
 /// One container connection to the SSH agent, relayed to the Mac's agent.
-pub fn serve_ssh_agent(stream: kiri_vmm::VsockStream) {
+pub fn serve_ssh_agent(stream: caskel_agent_transport::VsockStream) {
     let _ = std::thread::Builder::new().name("kiri-ssh-agent".into()).spawn(move || {
         let Some(path) = ssh_auth_sock() else { return };
         let Ok(agent) = std::os::unix::net::UnixStream::connect(path) else {
@@ -1017,7 +1017,7 @@ pub const ENGINE_API_PORT: u32 = 1036;
 
 /// One container connection to the engine's API, relayed to this daemon's
 /// own socket, so it is served like any other client.
-pub fn serve_engine_api(stream: kiri_vmm::VsockStream) {
+pub fn serve_engine_api(stream: caskel_agent_transport::VsockStream) {
     let _ = std::thread::Builder::new().name("kiri-engine-api".into()).spawn(move || {
         let Ok(api) = super::socket_path().and_then(std::os::unix::net::UnixStream::connect) else { return };
         let (Ok(mut api_read), Ok(from_guest), Ok(to_guest)) = (api.try_clone(), stream.fd.try_clone(), stream.fd.try_clone()) else {

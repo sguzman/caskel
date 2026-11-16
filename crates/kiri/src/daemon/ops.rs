@@ -72,8 +72,8 @@ fn body(req: &Request) -> Result<Value, Error> {
 }
 
 /// One sample as Docker's stats JSON; `pre` is the previous one.
-fn stats_json(id: &str, name: &str, s: &kiri_proto::ContainerStats, pre: Option<&kiri_proto::ContainerStats>, ceiling: u64) -> Value {
-    let cpu = |s: &kiri_proto::ContainerStats| {
+fn stats_json(id: &str, name: &str, s: &caskel_proto::ContainerStats, pre: Option<&caskel_proto::ContainerStats>, ceiling: u64) -> Value {
+    let cpu = |s: &caskel_proto::ContainerStats| {
         json!({
             "cpu_usage": {"total_usage": s.cpu_usage_usec * 1000, "usage_in_kernelmode": s.cpu_system_usec * 1000, "usage_in_usermode": s.cpu_user_usec * 1000},
             "system_cpu_usage": s.system_ticks * TICK_NS,
@@ -157,20 +157,20 @@ fn update(req: &Request, engine: &Engine, key: &str) -> Result<Value, Error> {
 }
 
 /// Starts a copy-service job and checks it accepted: `CopyDone` first.
-fn layer_job(engine: &Engine, key: &str, op: u8) -> Result<(kiri_vmm::VsockStream, std::fs::File), Error> {
+fn layer_job(engine: &Engine, key: &str, op: u8) -> Result<(caskel_agent_transport::VsockStream, std::fs::File), Error> {
     let stream = engine.copy(key, op, "/", 0)?;
     let mut f = std::fs::File::from(stream.fd.try_clone()?);
     let frame = guest_frame(&mut f)?;
-    match kiri_proto::decode(&frame) {
-        Ok(kiri_proto::Msg::CopyDone) => Ok((stream, f)),
-        Ok(kiri_proto::Msg::Error(m)) => Err(copy_error(m)),
+    match caskel_proto::decode(&frame) {
+        Ok(caskel_proto::Msg::CopyDone) => Ok((stream, f)),
+        Ok(caskel_proto::Msg::Error(m)) => Err(copy_error(m)),
         other => Err(Error::Io(io::Error::other(format!("unexpected copy reply: {other:?}")))),
     }
 }
 
 /// `docker diff`: Kind 0 changed, 1 added, 2 deleted.
 fn changes(engine: &Engine, key: &str) -> Result<Value, Error> {
-    let (_stream, mut f) = layer_job(engine, key, kiri_proto::copy_op::DIFF)?;
+    let (_stream, mut f) = layer_job(engine, key, caskel_proto::copy_op::DIFF)?;
     let mut text = String::new();
     f.read_to_string(&mut text)?;
     let list: Vec<Value> = text
@@ -190,7 +190,7 @@ fn changes(engine: &Engine, key: &str) -> Result<Value, Error> {
 }
 
 fn export(engine: &Engine, key: &str, w: &mut UnixStream) -> io::Result<Next> {
-    let (stream, mut f) = match layer_job(engine, key, kiri_proto::copy_op::EXPORT) {
+    let (stream, mut f) = match layer_job(engine, key, caskel_proto::copy_op::EXPORT) {
         Ok(v) => v,
         Err(e) => return reply(w, Err(e), 200),
     };
@@ -299,7 +299,7 @@ fn commit(req: &Request, engine: &Engine) -> Result<Value, Error> {
         engine.pause(&id, true)?;
     }
     let layer = (|| -> Result<(String, u64), Error> {
-        let (_stream, mut f) = layer_job(engine, &id, kiri_proto::copy_op::COMMIT)?;
+        let (_stream, mut f) = layer_job(engine, &id, caskel_proto::copy_op::COMMIT)?;
         let mut w = engine.store.ingest()?;
         io::copy(&mut f, &mut w)?;
         Ok(w.finish()?)
@@ -327,15 +327,15 @@ fn commit(req: &Request, engine: &Engine) -> Result<Value, Error> {
     io::Write::write_all(&mut w, &bytes)?;
     let (config_digest, _) = w.finish()?;
     let mut layers = base.layers.clone();
-    layers.push(kiri_image::Layer { digest, size, media_type: "application/vnd.oci.image.layer.v1.tar".into() });
+    layers.push(caskel_image::Layer { digest, size, media_type: "application/vnd.oci.image.layer.v1.tar".into() });
     let repo = req.query("repo").unwrap_or_default();
     let name = if repo.is_empty() {
         config_digest.clone()
     } else {
         let tag = req.query("tag").filter(|t| !t.is_empty()).unwrap_or("latest");
-        kiri_image::Reference::parse(&format!("{repo}:{tag}")).map(|r| r.short()).map_err(|e| Error::BadRequest(format!("invalid reference format: {e}")))?
+        caskel_image::Reference::parse(&format!("{repo}:{tag}")).map(|r| r.short()).map_err(|e| Error::BadRequest(format!("invalid reference format: {e}")))?
     };
-    let image = kiri_image::archive::from_config(name, &config_digest, &cfg, layers);
+    let image = caskel_image::archive::from_config(name, &config_digest, &cfg, layers);
     engine.store.put_image(image)?;
     engine.emit_container("commit", &id, &[]);
     Ok(json!({"Id": config_digest}))
@@ -439,7 +439,7 @@ fn system_df(engine: &Engine) -> Result<Value, Error> {
     let used: Vec<String> = engine.each(|c| Some(c.spec.image_id.clone()));
     let measured = engine.vm().ok().and_then(|vm| vm.usage(std::time::Duration::from_secs(120)));
     let du = measured.as_deref().map(DiskUsage::parse);
-    let layer_size = |l: &kiri_image::Layer| du.as_ref().and_then(|d| d.layers.get(l.digest.trim_start_matches("sha256:")).copied()).unwrap_or(l.size);
+    let layer_size = |l: &caskel_image::Layer| du.as_ref().and_then(|d| d.layers.get(l.digest.trim_start_matches("sha256:")).copied()).unwrap_or(l.size);
     // How many images use each layer, for each image's shared size.
     let mut users: HashMap<&str, usize> = HashMap::new();
     for i in &images {
@@ -457,7 +457,7 @@ fn system_df(engine: &Engine) -> Result<Value, Error> {
     if let Some(d) = &du {
         layers_size += d.layers.iter().filter(|(hex, _)| !seen.contains(hex.as_str())).map(|(_, b)| b).sum::<u64>();
     }
-    let image_size = |i: &kiri_image::Image| -> u64 { i.layers.iter().map(layer_size).sum() };
+    let image_size = |i: &caskel_image::Image| -> u64 { i.layers.iter().map(layer_size).sum() };
     let image_rows: Vec<Value> = images
         .iter()
         .map(|i| {
@@ -547,7 +547,7 @@ fn history(engine: &Engine, name: &str) -> Result<Value, Error> {
 fn search(req: &Request) -> Result<Value, Error> {
     let term = req.query("term").unwrap_or_default();
     let limit = req.query("limit").and_then(|l| l.parse().ok()).unwrap_or(25);
-    let results = kiri_image::Client::new().search(term, limit).map_err(|e| Error::BadRequest(format!("search failed: {e}")))?;
+    let results = caskel_image::Client::new().search(term, limit).map_err(|e| Error::BadRequest(format!("search failed: {e}")))?;
     let f = filters(req, &["is-official", "is-automated", "stars"])?;
     let rows: Vec<Value> = results
         .into_iter()

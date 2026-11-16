@@ -78,7 +78,7 @@ fn store(kind: Kind, key: &str, items: &Value) {
 }
 
 fn fetch(kind: Kind, key: &str) -> Result<Value, String> {
-    let client = kiri_image::Client::new();
+    let client = caskel_image::Client::new();
     match kind {
         Kind::Search => {
             let mut rows = client.search(key, 50).map_err(|e| e.to_string())?;
@@ -102,7 +102,7 @@ fn fetch(kind: Kind, key: &str) -> Result<Value, String> {
         // A name with a registry in front (`ghcr.io/o/r`, `public.ecr.aws/o/r`)
         // is asked of that registry; a plain one of Docker Hub.
         Kind::Tags if on_registry(key) => {
-            let r = kiri_image::Reference::parse(key).map_err(|e| e.to_string())?;
+            let r = caskel_image::Reference::parse(key).map_err(|e| e.to_string())?;
             let mut tags = order_tags(client.tags(&r, 2000).map_err(|e| e.to_string())?);
             tags.truncate(100);
             Ok(json!(tags))

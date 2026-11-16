@@ -1,5 +1,5 @@
 [package]
-name = "kiri-image"
+name = "caskel-image"
 description = "OCI image references, registry pulls and the content-addressed blob store"
 version.workspace = true
 edition.workspace = true

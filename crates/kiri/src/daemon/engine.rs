@@ -14,8 +14,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use kiri_image::{Image, Store};
-use kiri_proto::{Stream, run_flags};
+use caskel_image::{Image, Store};
+use caskel_proto::{Stream, run_flags};
 
 use super::network::Networks;
 use super::vmlink::{Event, VmLink};
@@ -278,7 +278,7 @@ pub struct Link {
     pub alias: String,
 }
 
-/// cgroup limits as saved with a container; see [`kiri_proto::Limits`].
+/// cgroup limits as saved with a container; see [`caskel_proto::Limits`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Limits {
     pub memory_max: u64,
@@ -291,8 +291,8 @@ pub struct Limits {
 }
 
 impl Limits {
-    pub fn wire(&self) -> kiri_proto::Limits {
-        kiri_proto::Limits {
+    pub fn wire(&self) -> caskel_proto::Limits {
+        caskel_proto::Limits {
             memory_max: self.memory_max,
             cpu_quota: self.cpu_quota,
             cpu_period: self.cpu_period,
@@ -783,7 +783,7 @@ impl Engine {
         // Container lookups the VM's gateway resolver fails, asked of the
         // Mac's own (VM only: a Linux host's agent asks the host's itself).
         if cfg!(target_os = "macos") {
-            vm.listen(kiri_proto::DNS_RELAY_PORT, Box::new(super::dns::serve_relay))?;
+            vm.listen(caskel_proto::DNS_RELAY_PORT, Box::new(super::dns::serve_relay))?;
         }
         // Everything else on the guest's disk belongs to containers that are gone.
         let keep: Vec<String> = self.lock().containers.keys().cloned().collect();
@@ -2082,14 +2082,14 @@ impl Engine {
                             c.ip6 = ip6;
                         }
                         if let (Some(a), Some(v)) = (ip6, &n.v6) {
-                            net6_opts.push(format!("{}={}/{}", kiri_proto::net_opts::IP6, super::network::ip6_str(a), v.prefix));
-                            net6_opts.push(format!("{}={}", kiri_proto::net_opts::GW6, super::network::ip6_str(v.gateway)));
+                            net6_opts.push(format!("{}={}/{}", caskel_proto::net_opts::IP6, super::network::ip6_str(a), v.prefix));
+                            net6_opts.push(format!("{}={}", caskel_proto::net_opts::GW6, super::network::ip6_str(v.gateway)));
                         }
                         if n.internal {
-                            net6_opts.push(format!("{}=1", kiri_proto::net_opts::INTERNAL));
+                            net6_opts.push(format!("{}=1", caskel_proto::net_opts::INTERNAL));
                         }
                         if n.no_ipv4 {
-                            net6_opts.push(format!("{}=1", kiri_proto::net_opts::NO_IPV4));
+                            net6_opts.push(format!("{}=1", caskel_proto::net_opts::NO_IPV4));
                         }
                     }
                     Err(e) => {
@@ -2151,7 +2151,7 @@ impl Engine {
         hosts.extend(links);
         let mut opts = net_opts(&spec, joined.as_deref(), &domainname);
         opts.extend(net6_opts);
-        let net_args = kiri_proto::Net { bridge: &bridge, ip, prefix, gateway, extra_hosts: &hosts, dns_names: &dns_names, opts: &opts };
+        let net_args = caskel_proto::Net { bridge: &bridge, ip, prefix, gateway, extra_hosts: &hosts, dns_names: &dns_names, opts: &opts };
         // Joining a host-network container is the host's namespace too: its
         // net.* sysctls would change the whole VM (or Linux host).
         let joined_host = joined_mode.is_some_and(|m| self.lock_networks().find(&m).is_some_and(|n| n.driver == "host"));
@@ -2559,14 +2559,14 @@ impl Engine {
     }
 
     /// A stream into the guest relay towards `ip:port`.
-    pub fn relay_to(&self, ip: [u8; 4], port: u16) -> io::Result<kiri_vmm::VsockStream> {
+    pub fn relay_to(&self, ip: [u8; 4], port: u16) -> io::Result<caskel_agent_transport::VsockStream> {
         let vm = self.vm()?;
         super::ports::open_relay(&vm, ip, port)
     }
 
     /// Opens a `docker cp` session with the guest for a container, running
     /// or not: the request frame is sent, the caller does the rest.
-    pub fn copy(&self, key: &str, op: u8, path: &str, flags: u32) -> Result<kiri_vmm::VsockStream, Error> {
+    pub fn copy(&self, key: &str, op: u8, path: &str, flags: u32) -> Result<caskel_agent_transport::VsockStream, Error> {
         let (id, layers) = {
             let st = self.lock();
             let id = resolve(&st, key)?;
@@ -2574,9 +2574,9 @@ impl Engine {
             (id, layers)
         };
         let vm = self.vm()?;
-        let stream = vm.connect(kiri_proto::COPY_PORT)?;
+        let stream = vm.connect(caskel_proto::COPY_PORT)?;
         let mut out = Vec::new();
-        kiri_proto::encode_copy(&mut out, op, &id, path, flags, &layers);
+        caskel_proto::encode_copy(&mut out, op, &id, path, flags, &layers);
         std::io::Write::write_all(&mut std::fs::File::from(stream.fd.try_clone()?), &out)?;
         Ok(stream)
     }
@@ -2761,16 +2761,16 @@ impl Engine {
         let (name, hostname) = self.lock().containers.get(id).map(|c| (c.name.clone(), c.short_id().to_owned())).unwrap_or_default();
         let mut names = vec![name, hostname];
         names.extend(extra.aliases.iter().cloned());
-        let mut opts: Vec<String> = if extra.mac_address.is_empty() { Vec::new() } else { vec![format!("{}={}", kiri_proto::net_opts::MAC, extra.mac_address)] };
+        let mut opts: Vec<String> = if extra.mac_address.is_empty() { Vec::new() } else { vec![format!("{}={}", caskel_proto::net_opts::MAC, extra.mac_address)] };
         if let (Some(a), Some(v)) = (ip6, &net.v6) {
-            opts.push(format!("{}={}/{}", kiri_proto::net_opts::IP6, super::network::ip6_str(a), v.prefix));
-            opts.push(format!("{}={}", kiri_proto::net_opts::GW6, super::network::ip6_str(v.gateway)));
+            opts.push(format!("{}={}/{}", caskel_proto::net_opts::IP6, super::network::ip6_str(a), v.prefix));
+            opts.push(format!("{}={}", caskel_proto::net_opts::GW6, super::network::ip6_str(v.gateway)));
         }
         if net.internal {
-            opts.push(format!("{}=1", kiri_proto::net_opts::INTERNAL));
+            opts.push(format!("{}=1", caskel_proto::net_opts::INTERNAL));
         }
         if net.no_ipv4 {
-            opts.push(format!("{}=1", kiri_proto::net_opts::NO_IPV4));
+            opts.push(format!("{}=1", caskel_proto::net_opts::NO_IPV4));
         }
         if let Err(e) = vm.net_attach(id, n, &net.bridge, ip, net.prefix, net.gateway, &names, &opts) {
             let mut nets = self.lock_networks();
@@ -2921,7 +2921,7 @@ impl Engine {
     }
 
     /// One `docker stats` sample of a running container.
-    pub fn stats(&self, key: &str) -> Result<(String, String, kiri_proto::ContainerStats), Error> {
+    pub fn stats(&self, key: &str) -> Result<(String, String, caskel_proto::ContainerStats), Error> {
         let id = self.resolve(key)?;
         let name = self.lock().containers.get(&id).map(|c| c.name.clone()).unwrap_or_default();
         if !self.is_running(&id) {
@@ -3497,7 +3497,7 @@ impl Engine {
 /// A BuildKit container's exec is a build session (`docker build`).
 /// The `key=value` network settings the guest takes with `Run`.
 fn net_opts(spec: &Spec, joined: Option<&str>, domainname: &str) -> Vec<String> {
-    use kiri_proto::net_opts as k;
+    use caskel_proto::net_opts as k;
     let mut opts = Vec::new();
     if let Some(target) = joined {
         opts.push(format!("{}={target}", k::NETNS));
@@ -3661,7 +3661,7 @@ fn valid_container_name(n: &str) -> bool {
 /// `name:tag@digest` by the platform manifest's digest or the index's it was
 /// pulled by.
 fn image_named(images: Vec<Image>, name: &str) -> Option<Image> {
-    let reference = kiri_image::Reference::parse(name).ok();
+    let reference = caskel_image::Reference::parse(name).ok();
     let short = reference.as_ref().map(|r| r.short()).unwrap_or_else(|| name.to_owned());
     images.into_iter().find(|i| {
         i.name == short
@@ -3674,7 +3674,7 @@ fn image_named(images: Vec<Image>, name: &str) -> Option<Image> {
 
 #[cfg(test)]
 mod image_lookup_tests {
-    use kiri_image::{Image, RunConfig};
+    use caskel_image::{Image, RunConfig};
 
     const INDEX: &str = "sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5";
     const ARM64: &str = "sha256:6a3345f517a7df05185c648f83d18d464f2a94ea4a69eaee39b7e1de02611e59";

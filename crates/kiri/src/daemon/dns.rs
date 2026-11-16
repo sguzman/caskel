@@ -93,10 +93,10 @@ const MAX_RELAYS: usize = 256;
 static RELAYS: AtomicUsize = AtomicUsize::new(0);
 
 /// One lookup from the guest agent: `u16 len | query` in, `u16 len | reply`
-/// out (kiri_proto::DNS_RELAY_PORT). The agent sends here only what the
+/// out (caskel_proto::DNS_RELAY_PORT). The agent sends here only what the
 /// VM's gateway resolver refused or left unanswered, so this is the path
 /// while macOS's resolver for the VM network is down.
-pub fn serve_relay(stream: kiri_vmm::VsockStream) {
+pub fn serve_relay(stream: caskel_agent_transport::VsockStream) {
     if RELAYS.fetch_add(1, Ordering::Relaxed) >= MAX_RELAYS {
         RELAYS.fetch_sub(1, Ordering::Relaxed);
         return;
@@ -110,7 +110,7 @@ pub fn serve_relay(stream: kiri_vmm::VsockStream) {
     }
 }
 
-fn relay_one(stream: &kiri_vmm::VsockStream) {
+fn relay_one(stream: &caskel_agent_transport::VsockStream) {
     let Ok(fd) = stream.fd.try_clone() else { return };
     // A peer that connects and then says nothing doesn't keep a thread.
     // Best effort: without the timeouts the lookup still works.

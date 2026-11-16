@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use kiri_image::Cancel;
+use caskel_image::Cancel;
 
 use super::http;
 

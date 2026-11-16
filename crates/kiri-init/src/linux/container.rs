@@ -12,7 +12,7 @@ use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-use kiri_proto::{ExecSpec, RunSpec, StrList, net_opts, run_flags};
+use caskel_proto::{ExecSpec, RunSpec, StrList, net_opts, run_flags};
 
 use super::inroot::{self, Last};
 use super::layers;
@@ -276,7 +276,7 @@ pub fn spawn(spec: &RunSpec<'_>, paths: &Paths, net: NetCtx<'_>) -> io::Result<P
         super::containers_cgroup(&paths.cgroup);
     }
     let _ = fs::create_dir(&cgroup);
-    if spec.limits != kiri_proto::Limits::default() {
+    if spec.limits != caskel_proto::Limits::default() {
         super::cgroup::apply_limits(&cgroup, &spec.limits).map_err(cleanup)?;
     }
     let cgroup_fd = fs::File::open(&cgroup).map_err(cleanup)?;
@@ -1682,7 +1682,7 @@ fn find_executable(p: &Prepared) -> Option<CString> {
 
 #[cfg(test)]
 mod tests {
-    use kiri_proto::{Limits, Msg, Net, decode, encode_run, run_flags};
+    use caskel_proto::{Limits, Msg, Net, decode, encode_run, run_flags};
 
     // #227: a new container's writable layer is marked plain before it is
     // first mounted, and keeps that; one written before (no mark, not
@@ -1840,7 +1840,7 @@ mod tests {
 
     #[test]
     fn in_the_vm_the_default_bridge_goes_through_the_agent() {
-        let spec_with = |flags: u32, opts: &[&str], f: &dyn Fn(&kiri_proto::RunSpec<'_>)| {
+        let spec_with = |flags: u32, opts: &[&str], f: &dyn Fn(&caskel_proto::RunSpec<'_>)| {
             let mut buf = Vec::new();
             let net = Net { bridge: "kiri0", ip: [172, 17, 0, 2], prefix: 16, gateway: [172, 17, 0, 1], extra_hosts: &[], dns_names: &[], opts };
             encode_run(&mut buf, "c1", &[], &["sh"], &[], "/", "", "c1", flags, net, &[], &Limits::default(), 0, &[] as &[&str], &[]);

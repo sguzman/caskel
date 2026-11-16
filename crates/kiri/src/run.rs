@@ -4,8 +4,8 @@
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
-use kiri_image::{Client, Image, Platform, Reference, Store};
-use kiri_proto::{Stream, run_flags};
+use caskel_image::{Client, Image, Platform, Reference, Store};
+use caskel_proto::{Stream, run_flags};
 
 use crate::guest::{BootOptions, Guest, RunRequest};
 

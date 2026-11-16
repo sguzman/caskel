@@ -1,6 +1,6 @@
 [package]
-name = "kiri-proto"
-description = "Wire protocol between the Kiri host and guest"
+name = "caskel-proto"
+description = "Caskel host-agent wire protocol (legacy KIRI_* framing retained)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

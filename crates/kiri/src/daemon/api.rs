@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use kiri_image::{Client, Platform, Progress, Reference};
-use kiri_proto::Stream;
+use caskel_image::{Client, Platform, Progress, Reference};
+use caskel_proto::Stream;
 
 use super::engine::{Container, Engine, Error, ExecConfig, RestartPolicy, Spec, Status};
 use super::filters::Filters;
@@ -560,7 +560,7 @@ fn image_tag(req: &Request, engine: &Engine, source: &str) -> Result<(), Error> 
 
 /// `docker load`: an image archive, streamed into the store.
 fn image_load(req: &Request, engine: &Engine, w: &mut UnixStream, r: &mut BufReader<UnixStream>) -> io::Result<Next> {
-    let loaded = kiri_image::archive::load(&engine.store, http::Body::new(req, r));
+    let loaded = caskel_image::archive::load(&engine.store, http::Body::new(req, r));
     match loaded {
         Ok(images) => {
             http::begin_stream_with(w, 200, "application/json", http::CLOSE)?;
@@ -599,7 +599,7 @@ fn image_save(engine: &Engine, names: &[String], w: &mut UnixStream) -> io::Resu
         }
     }
     let out = io::BufWriter::with_capacity(256 * 1024, Chunked(w));
-    kiri_image::archive::save(&engine.store, &images, out)?;
+    caskel_image::archive::save(&engine.store, &images, out)?;
     http::end(w)?;
     Ok(Next::KeepAlive)
 }
@@ -731,17 +731,17 @@ fn set_env(req: &Request, engine: &Engine, id: &str) -> Result<Value, Error> {
 
 /// A registry client with the credentials the CLI sent, if any.
 fn client_for(req: &Request) -> Client {
-    Client::new().with_credentials(req.header("x-registry-auth").and_then(kiri_image::Credentials::from_header))
+    Client::new().with_credentials(req.header("x-registry-auth").and_then(caskel_image::Credentials::from_header))
 }
 
 /// `GET /distribution/{name}/json`: what the registry serves for an image
 /// reference now (its digest and platforms), without pulling it. Update
 /// checkers (Watchtower, Arcane) and `docker manifest inspect` ask this (#257).
 fn distribution(req: &Request, name: &str) -> Result<Value, Error> {
-    let reference = kiri_image::Reference::parse(name).map_err(|e| Error::BadRequest(format!("invalid reference format: {e}")))?;
+    let reference = caskel_image::Reference::parse(name).map_err(|e| Error::BadRequest(format!("invalid reference format: {e}")))?;
     client_for(req).distribution(&reference).map_err(|e| match e {
-        kiri_image::registry::Error::NotFound(m) => Error::NotFound(m),
-        kiri_image::registry::Error::Status { status: 401 | 403, .. } => Error::Unauthorized(format!("{name}: authentication required")),
+        caskel_image::registry::Error::NotFound(m) => Error::NotFound(m),
+        caskel_image::registry::Error::Status { status: 401 | 403, .. } => Error::Unauthorized(format!("{name}: authentication required")),
         e => Error::Io(io::Error::other(e.to_string())),
     })
 }
@@ -749,11 +749,11 @@ fn distribution(req: &Request, name: &str) -> Result<Value, Error> {
 /// `docker login`: the CLI asks the daemon to check the password, then
 /// stores it itself.
 fn auth(req: &Request) -> Result<Value, Error> {
-    let creds: kiri_image::Credentials = serde_json::from_slice(&req.body).map_err(|e| Error::BadRequest(format!("invalid JSON: {e}")))?;
+    let creds: caskel_image::Credentials = serde_json::from_slice(&req.body).map_err(|e| Error::BadRequest(format!("invalid JSON: {e}")))?;
     let server = if creds.server_address.is_empty() { "https://index.docker.io/v1/".to_owned() } else { creds.server_address.clone() };
     match Client::new().with_credentials(Some(creds)).login(&server) {
         Ok(()) => Ok(json!({"Status": "Login Succeeded", "IdentityToken": ""})),
-        Err(kiri_image::registry::Error::Status { status: 401 | 403, body, .. }) => {
+        Err(caskel_image::registry::Error::Status { status: 401 | 403, body, .. }) => {
             Err(Error::Unauthorized(if body.is_empty() { "unauthorized: incorrect username or password".into() } else { body }))
         }
         Err(e) => Err(Error::BadRequest(format!("login to {server} failed: {e}"))),
@@ -780,9 +780,9 @@ fn push(req: &Request, engine: &Engine, name: &str, w: &mut UnixStream) -> io::R
     let short = |d: &str| d.strip_prefix("sha256:").unwrap_or(d).chars().take(12).collect::<String>();
     line(json!({"status": format!("The push refers to repository [{}]", if target.registry == "docker.io" { format!("docker.io/{}", target.repository) } else { format!("{}/{}", target.registry, target.repository) })}));
     let result = client_for(req).push(&engine.store, &image, &target, &|p| match p {
-        kiri_image::PushProgress::Exists { digest } => line(json!({"status": "Layer already exists", "progressDetail": {}, "id": short(&digest)})),
-        kiri_image::PushProgress::Uploading { digest, .. } => line(json!({"status": "Pushing", "progressDetail": {}, "id": short(&digest)})),
-        kiri_image::PushProgress::Pushed { digest } => line(json!({"status": "Pushed", "progressDetail": {}, "id": short(&digest)})),
+        caskel_image::PushProgress::Exists { digest } => line(json!({"status": "Layer already exists", "progressDetail": {}, "id": short(&digest)})),
+        caskel_image::PushProgress::Uploading { digest, .. } => line(json!({"status": "Pushing", "progressDetail": {}, "id": short(&digest)})),
+        caskel_image::PushProgress::Pushed { digest } => line(json!({"status": "Pushed", "progressDetail": {}, "id": short(&digest)})),
     });
     match result {
         Ok((digest, size)) => {
@@ -865,9 +865,9 @@ fn run_pull(req: &Request, engine: &Engine, reference: &Reference, job: &super::
     crate::diag::info!("image pull started", image = reference.short(), platform = wanted);
     let mut result = client.pull_with(&engine.store, reference, &wanted, &on_progress, &job.cancel);
     // An image built only for amd64 runs through Rosetta, as on Docker Desktop.
-    if let Err(kiri_image::registry::Error::NoPlatform { available, .. }) = &result {
+    if let Err(caskel_image::registry::Error::NoPlatform { available, .. }) = &result {
         let amd64 = Platform { os: "linux".into(), architecture: "amd64".into() };
-        if req.query("platform").is_none_or(str::is_empty) && wanted != amd64 && available.iter().any(|a| a == "linux/amd64") && kiri_vmm::rosetta_installed() {
+        if req.query("platform").is_none_or(str::is_empty) && wanted != amd64 && available.iter().any(|a| a == "linux/amd64") && caskel_agent_transport::rosetta_installed() {
             line(json!({"status": format!("{} has no {wanted} image; using linux/amd64 through Rosetta", reference.short())}));
             result = client.pull_with(&engine.store, reference, &amd64, &on_progress, &job.cancel);
         }
@@ -881,13 +881,13 @@ fn run_pull(req: &Request, engine: &Engine, reference: &Reference, job: &super::
             crate::diag::info!("image pulled", image = reference.short(), ms = began.elapsed().as_millis());
         }
         // Nobody is left to tell.
-        Err(kiri_image::registry::Error::Cancelled) => {
+        Err(caskel_image::registry::Error::Cancelled) => {
             crate::diag::info!("image pull stopped", image = reference.short(), ms = began.elapsed().as_millis());
         }
         Err(e) => {
             crate::diag::warn!("image pull failed", image = reference.short(), error = e);
             let mut message = e.to_string();
-            if let kiri_image::registry::Error::NoPlatform { available, .. } = &e {
+            if let caskel_image::registry::Error::NoPlatform { available, .. } = &e {
                 if let Some(why) = intel_mac_refusal(&reference.short(), available) {
                     message = why;
                 }
@@ -903,8 +903,8 @@ fn run_pull(req: &Request, engine: &Engine, reference: &Reference, job: &super::
 /// What a failed pull most likely means, in words that say what to fix: the
 /// network, the proxy, a login or the registry's rate limit. None when the
 /// error says it well enough itself.
-fn pull_hint(e: &kiri_image::registry::Error, registry: &str, proxy: Option<&str>) -> Option<String> {
-    use kiri_image::registry::Error;
+fn pull_hint(e: &caskel_image::registry::Error, registry: &str, proxy: Option<&str>) -> Option<String> {
+    use caskel_image::registry::Error;
     let name = if registry == "docker.io" || registry.ends_with(".docker.io") { "Docker Hub".to_owned() } else { registry.to_owned() };
     match e {
         Error::Http(m) => {
@@ -934,7 +934,7 @@ fn pull_hint(e: &kiri_image::registry::Error, registry: &str, proxy: Option<&str
 
 /// `-p` (`HostConfig.PortBindings`) and `-P` (`PublishAllPorts`: every port
 /// the image or `--expose` declares, on a free host port).
-fn port_bindings(body: &Value, engine: &Engine, image: &kiri_image::Image) -> Result<Vec<super::ports::Binding>, Error> {
+fn port_bindings(body: &Value, engine: &Engine, image: &caskel_image::Image) -> Result<Vec<super::ports::Binding>, Error> {
     let parse = |key: &str| -> Result<(u16, String), Error> {
         let (port, proto) = key.split_once('/').unwrap_or((key, "tcp"));
         let port = port.parse().map_err(|_| Error::BadRequest(format!("invalid port {key}")))?;
@@ -1090,7 +1090,7 @@ fn resolve_server(host: &str) -> Option<String> {
 }
 
 /// `-v`, `--mount`, `--tmpfs`, `-v /path` and the image's VOLUME lines.
-fn mounts(body: &Value, engine: &Engine, image: &kiri_image::Image) -> Result<Mounts, Error> {
+fn mounts(body: &Value, engine: &Engine, image: &caskel_image::Image) -> Result<Mounts, Error> {
     let host = &body["HostConfig"];
     let mut out = Mounts { guest: Vec::new(), info: Vec::new(), volumes: Vec::new(), anon: Vec::new() };
     let check_target = |t: &str| -> Result<(), Error> {
@@ -1314,7 +1314,7 @@ fn volumes(req: &Request, engine: &Engine) -> Result<Value, Error> {
 }
 
 /// The TCP ports an image declares (EXPOSE) plus `--expose`.
-fn exposed_ports(body: &Value, engine: &Engine, image: &kiri_image::Image) -> Vec<u16> {
+fn exposed_ports(body: &Value, engine: &Engine, image: &caskel_image::Image) -> Vec<u16> {
     let mut keys: Vec<String> = body["ExposedPorts"].as_object().map(|m| m.keys().cloned().collect()).unwrap_or_default();
     if let Ok(bytes) = engine.store.read_config(&image.config_digest) {
         if let Ok(cfg) = serde_json::from_slice::<Value>(&bytes) {
@@ -1805,7 +1805,7 @@ fn healthcheck_from(body: &Value, image_cfg: &Value) -> Result<Option<super::hea
 }
 
 /// The image's HEALTHCHECK, which Kiri's image model does not keep.
-fn image_healthcheck(engine: &Engine, i: &kiri_image::Image) -> Value {
+fn image_healthcheck(engine: &Engine, i: &caskel_image::Image) -> Value {
     let cfg: Value = engine.store.read_config(&i.config_digest).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null);
     cfg["config"]["Healthcheck"].clone()
 }
@@ -2491,7 +2491,7 @@ pub(super) fn guest_frame(f: &mut std::fs::File) -> io::Result<Vec<u8>> {
     use std::io::Read;
     let mut buf = vec![0u8; 4];
     f.read_exact(&mut buf)?;
-    let len = kiri_proto::frame_len(buf[..4].try_into().expect("4 bytes")).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
+    let len = caskel_proto::frame_len(buf[..4].try_into().expect("4 bytes")).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
     buf.resize(len, 0);
     f.read_exact(&mut buf[4..])?;
     Ok(buf)
@@ -2552,26 +2552,26 @@ fn go_file_mode(mode: u32) -> u32 {
     m
 }
 
-fn path_stat_header(e: &kiri_proto::FsEntry<'_>, link: &str) -> String {
+fn path_stat_header(e: &caskel_proto::FsEntry<'_>, link: &str) -> String {
     let mtime = std::time::UNIX_EPOCH + Duration::new(e.mtime.max(0) as u64, e.mtime_nsec);
     let stat = json!({"name": e.name, "size": e.size, "mode": go_file_mode(e.mode), "mtime": time::rfc3339(mtime), "linkTarget": link});
-    format!("X-Docker-Container-Path-Stat: {}\r\n", kiri_image::b64::encode(stat.to_string().as_bytes()))
+    format!("X-Docker-Container-Path-Stat: {}\r\n", caskel_image::b64::encode(stat.to_string().as_bytes()))
 }
 
 /// `docker cp` out of a container (GET), or the stat it starts with (HEAD).
 fn archive_get(req: &Request, engine: &Engine, id: &str, w: &mut UnixStream) -> io::Result<Next> {
     use std::io::Read;
     let path = req.query("path").unwrap_or("/");
-    let op = if req.method == "HEAD" { kiri_proto::copy_op::STAT } else { kiri_proto::copy_op::OUT };
+    let op = if req.method == "HEAD" { caskel_proto::copy_op::STAT } else { caskel_proto::copy_op::OUT };
     let stream = match engine.copy(id, op, path, 0) {
         Ok(s) => s,
         Err(e) => return reply(w, Err(e), 200),
     };
     let mut f = std::fs::File::from(stream.fd.try_clone()?);
     let frame = guest_frame(&mut f)?;
-    let header = match kiri_proto::decode(&frame) {
-        Ok(kiri_proto::Msg::CopyStat { entry, link }) => path_stat_header(&entry, link),
-        Ok(kiri_proto::Msg::Error(m)) => {
+    let header = match caskel_proto::decode(&frame) {
+        Ok(caskel_proto::Msg::CopyStat { entry, link }) => path_stat_header(&entry, link),
+        Ok(caskel_proto::Msg::Error(m)) => {
             // HEAD answers carry no body, so the reason goes nowhere; the CLI
             // reports "no such file" from the status alone.
             if req.method == "HEAD" {
@@ -2639,7 +2639,7 @@ fn upload_reader<'a>(head: Vec<u8>, rest: impl io::Read + 'a) -> Result<Box<dyn 
 }
 
 fn archive_put(req: &Request, engine: &Engine, id: &str, w: &mut UnixStream, r: &mut BufReader<UnixStream>) -> io::Result<Next> {
-    use kiri_proto::copy_flags;
+    use caskel_proto::copy_flags;
     let path = req.query("path").unwrap_or("/");
     let mut flags = copy_flags::CHUNKED;
     if req.flag("copyUIDGID") {
@@ -2661,7 +2661,7 @@ fn archive_put(req: &Request, engine: &Engine, id: &str, w: &mut UnixStream, r: 
             return Ok(Next::Close);
         }
     };
-    let stream = match engine.copy(id, kiri_proto::copy_op::IN, path, flags) {
+    let stream = match engine.copy(id, caskel_proto::copy_op::IN, path, flags) {
         Ok(s) => s,
         Err(e) => {
             error_closing(w, e)?;
@@ -2677,9 +2677,9 @@ fn archive_put(req: &Request, engine: &Engine, id: &str, w: &mut UnixStream, r: 
     }
     let mut from_guest = std::fs::File::from(stream.fd.try_clone()?);
     let result = match guest_frame(&mut from_guest) {
-        Ok(frame) => match kiri_proto::decode(&frame) {
-            Ok(kiri_proto::Msg::CopyDone) => Ok(()),
-            Ok(kiri_proto::Msg::Error(m)) => Err(copy_error(m)),
+        Ok(frame) => match caskel_proto::decode(&frame) {
+            Ok(caskel_proto::Msg::CopyDone) => Ok(()),
+            Ok(caskel_proto::Msg::Error(m)) => Err(copy_error(m)),
             Ok(other) => Err(Error::Io(io::Error::other(format!("unexpected copy reply: {other:?}")))),
             Err(e) => Err(Error::Io(io::Error::other(format!("bad copy reply: {e:?}")))),
         },
@@ -3128,7 +3128,7 @@ mod network_option_tests {
 
     #[test]
     fn failed_pulls_say_what_to_fix() {
-        use kiri_image::registry::Error;
+        use caskel_image::registry::Error;
         let http = |m: &str| Error::Http(m.into());
         let p = Some("http://127.0.0.1:7892");
         assert_eq!(super::pull_hint(&http("io: Connection refused (os error 111)"), "docker.io", p).unwrap(), "the proxy http://127.0.0.1:7892 refused the connection or closed it: is it running?");

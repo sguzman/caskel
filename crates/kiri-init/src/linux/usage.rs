@@ -10,7 +10,7 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-/// One `KIND NAME BYTES` line per entry (see `kiri_proto::Msg::Usage`).
+/// One `KIND NAME BYTES` line per entry (see `caskel_proto::Msg::Usage`).
 pub fn measure(layers: &Path, containers: &Path, volumes: &Path) -> Vec<String> {
     let mut lines = Vec::new();
     // Every entry in the layer store, half-done unpacks included, so the
