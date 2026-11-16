@@ -40,6 +40,8 @@ mod flavor;
 mod images;
 #[cfg(unix)]
 mod guest;
+#[cfg(target_os = "linux")]
+mod migrate;
 #[cfg(unix)]
 mod k8s;
 // kubectl's own file, which `kiri k8s` puts its context in.
@@ -69,6 +71,7 @@ usage: caskel COMMAND          docker's commands, on Caskel: caskel run, ps, exe
                              logs, stop, rm, images, pull, build, compose…
        caskel daemon
        caskel bridge [--socket PATH]
+       caskel migrate docker --list [--socket PATH] [--json]   read-only Docker inventory
        caskel ui [--start] [--view containers|images|volumes|networks]
        caskel build-with [docker|caskel]   which builder docker build uses
        caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [-n N]
@@ -101,6 +104,8 @@ fn main() -> ExitCode {
         Some("bridge") => bridge::run(&args[1..]),
         #[cfg(target_os = "linux")]
         Some("hostrelay") => hostrelay::run(),
+        #[cfg(target_os = "linux")]
+        Some("migrate") => migrate::run(&args[1..]),
         #[cfg(unix)]
         Some("raw") => match args.get(1).map(String::as_str) {
             Some("run") => run::run(&args[2..]),
