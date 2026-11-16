@@ -44,9 +44,32 @@ diagnostics as Caskel services.
 ## Scope and acceptance
 
 - Branding commits require Nix/Rust tests, UI/i18n checks, CodeQL and Speed.
-- Current headless Nix build is supported; optional GTK runtime needs its
-  own GUI dependency build and real-desktop acceptance before release.
+- The pinned headless Nix build is supported. PR #32 adds a Linux
+  GTK/WebKitGTK 4.1 compile gate to CI for the optional window; this is
+  distinct from **real desktop GUI acceptance**, which remains pending.
 - Do not auto-switch Docker's default context, rewrite old Kiri files, or
   restart either old Kiri or production Docker.
 - Do not bulk-replace protocol/setting identifiers without versioned
   compatibility tests and an explicit rollback.
+
+## Repository profile settings (owner action required)
+
+Source-level branding is independent of GitHub's repository profile.
+As verified on 2026-11-16, the GitHub **About** metadata still carried
+upstream's old text and external domain:
+
+- Replace description "A small, fast container runtime for macOS, Windows
+  and Linux with free Ngrok alternative" with
+  **"Linux-first Rust container engine with Docker-compatible API, pinned
+  Nix builds and isolated systemd integration."**
+- Remove homepage `https://runkiri.com` (or set it to the canonical
+  `https://github.com/sguzman/caskel` until Caskel has its own site).
+- Optional: set truthful topics such as `rust`, `linux`, `containers`,
+  `nix`, `docker-compatibility`.
+- GitHub Issues are currently disabled, so issue templates remain dormant
+  until the owner deliberately enables them.
+
+The GitHub connector available for this work supports commit/PR editing
+but not repository-profile mutation. None of the above owner-only changes
+are claimed as completed or allowed to block source tests. The existing
+upstream legal attribution and GPL source obligations remain unchanged.
