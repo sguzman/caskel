@@ -2302,7 +2302,7 @@ tr.usb-more > td { padding: 0; background: var(--panel); }
     <button data-view="pods"><svg class="i" viewBox="0 0 256 256" data-ph="pods"></svg><span class="lbl" data-i18n="Pods">Pods</span><span class="count" id="n-pods"></span></button>
     <button data-view="services"><svg class="i" viewBox="0 0 256 256" data-ph="services"></svg><span class="lbl" data-i18n="Services">Services</span><span class="count" id="n-services"></span></button>
   </nav>
-  <div class="navlabel">Kiri</div>
+  <div class="navlabel">Caskel</div>
   <nav>
     <button data-view="usb"><svg class="i" viewBox="0 0 256 256" data-ph="usb"></svg><span class="lbl" data-i18n="USB">USB</span><span class="beta" data-i18n-title="USB passthrough is new: tell us how it works with your devices" title="USB passthrough is new: tell us how it works with your devices" data-i18n="Beta">Beta</span><span class="count" id="n-usb"></span></button>
     <button data-view="share" class="shareonly"><svg class="i" viewBox="0 0 256 256" data-ph="globe"></svg><span class="lbl" data-i18n="Share">Share</span></button>
@@ -2492,7 +2492,10 @@ const trFill = (s, vars, islands) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (
 /* A key may end in |context where one English word needs two translations
    ("Live|stream" for a live feed, "Live" for a link that's up); English drops it. */
 const trBare = (s) => { const i = s.indexOf("|"); return i < 0 ? s : s.slice(0, i); };
-function tr(s, vars) { const w = DICT && DICT[s]; return trFill(w || trBare(s), vars, w && RTL.test(LANG)); }
+/* Keep the 37 locale catalogs' English lookup keys stable. Display Caskel
+   for this Linux product, without misrepresenting upstream Kiri Cloud/Share. */
+const caskelBrand = (s) => window.KIRI_OS === "linux" ? String(s).replace(/\bKiri\b(?! Cloud\b| Share\b)/g, "Caskel") : String(s);
+function tr(s, vars) { const w = DICT && DICT[s]; return trFill(caskelBrand(w || trBare(s)), vars, w && RTL.test(LANG)); }
 /* Chinese, Japanese and Korean: no spaces to wrap at (Korean has them, but its
    short choices stay whole too), and each its own fonts. */
 const CJK = /^(zh|ja|ko)/;
@@ -2532,7 +2535,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>${Object.entries({ ...CJK_
    unless vars say. */
 let PLURAL = null;
 const isOne = (n) => { try { PLURAL ||= new Intl.PluralRules(LANG); return PLURAL.select(n) === "one"; } catch { return n === 1; } };
-function trn(n, one, other, vars) { const s = isOne(n) ? one : other, w = DICT && DICT[s]; return trFill(w || trBare(s), { n, ...vars }, w && RTL.test(LANG)); }
+function trn(n, one, other, vars) { const s = isOne(n) ? one : other, w = DICT && DICT[s]; return trFill(caskelBrand(w || trBare(s)), { n, ...vars }, w && RTL.test(LANG)); }
 setLang(window.KIRI_LANG?.pick);
 // The page runs in the Mac app, through kiri-win on Windows and in the GTK
 // window on Linux (both set KIRI_OS). Words that name the computer come from here.
@@ -3574,8 +3577,8 @@ const ctxBytes = (v) => { const m = /^([\d.]+)\s*([kMGT]?)B$/i.exec(String(v || 
 
 function ctxStatusItem() {
   if (!ui.status) return "";
-  if (!ctxOther()) return `<span class="sep">·</span><span class="item ctx-ok" title="${tr("The docker command uses {app}", { app: esc(ui.status.app || "Kiri") })}"><i></i>docker → ${esc(ui.status.app || "Kiri")}</span>`;
-  return `<span class="sep">·</span><button class="item ctx-warn" data-ctxswitch title="${tr("The docker command uses {engine}. Switch it to {app}", { engine: esc(ctxLabel(ui.status.context)), app: esc(ui.status.app || "Kiri") })}">${ctxWarn()}docker → ${esc(rtl() ? island(ctxLabel(ui.status.context)) : ctxLabel(ui.status.context))}</button>`;
+  if (!ctxOther()) return `<span class="sep">·</span><span class="item ctx-ok" title="${tr("The docker command uses {app}", { app: esc(ui.status.app || "Caskel") })}"><i></i>docker → ${esc(ui.status.app || "Caskel")}</span>`;
+  return `<span class="sep">·</span><button class="item ctx-warn" data-ctxswitch title="${tr("The docker command uses {engine}. Switch it to {app}", { engine: esc(ctxLabel(ui.status.context)), app: esc(ui.status.app || "Caskel") })}">${ctxWarn()}docker → ${esc(rtl() ? island(ctxLabel(ui.status.context)) : ctxLabel(ui.status.context))}</button>`;
 }
 
 function renderCtxStrip() {
@@ -3583,7 +3586,7 @@ function renderCtxStrip() {
   if (!ctxOther() || !["containers", "images"].includes(ui.view) || Date.now() < (prefs.ctxSnooze || 0) || ctx.card) return false;
   el.innerHTML = `${ctxWarn("is-warn")}
     <span class="is-text">${tr("<b>docker still uses {engine}</b>, so what you run in the terminal won't show up here. Your images can come along.", { engine: esc(ctxLabel(ui.status.context)) })}</span>
-    <button class="btn sm primary" data-ctxswitch>${tr("Switch to {app}", { app: esc(ui.status.app || "Kiri") })}</button>
+    <button class="btn sm primary" data-ctxswitch>${tr("Switch to {app}", { app: esc(ui.status.app || "Caskel") })}</button>
     <button class="is-x" data-ctxsnooze title="${tr("Not now: ask again in a week")}" aria-label="${tr("Not now")}">×</button>`;
   el.classList.add("ctx");
   el.hidden = false;
@@ -3599,7 +3602,7 @@ function ctxImages(from) {
 function ctxDialog() {
   if (!ctxOther()) return;
   $("ctx-dlg")?.remove();
-  const from = ui.status.context, label = ctxLabel(from), app = ui.status.app || "Kiri";
+  const from = ui.status.context, label = ctxLabel(from), app = ui.status.app || "Caskel";
   const src = ui.imp.sources?.find((s) => s.id === from), imgs = ctxImages(from), inv = ui.imp.inv;
   if (src?.running && !imgs) send("inventory", { name: from });
   const bytes = (imgs || []).reduce((a, v) => a + ctxBytes(v.size), 0);
@@ -3863,7 +3866,7 @@ function buildsPane() {
     : kiri && !b.taken ? `<p class="muted">${tr("Another builder has been picked for {build} since ({use}). Choose Kiri again to build on Kiri.", { build: cmd("docker build"), use: cmd("docker buildx use") })}</p>` : "";
   return `<div class="pane"><h3>${tr("Builds")}</h3>
     <div class="pref"><span class="t">${tr("Build with")}</span><span class="d">${desc}</span>
-      <div class="seg" role="group" aria-label="${tr("Build with")}"><button data-bw="docker" aria-pressed="${!kiri}">Docker</button><button data-bw="kiri" aria-pressed="${kiri}">Kiri</button></div></div>
+      <div class="seg" role="group" aria-label="${tr("Build with")}"><button data-bw="docker" aria-pressed="${!kiri}">Docker</button><button data-bw="kiri" aria-pressed="${kiri}">Caskel</button></div></div>
     ${note}
     ${builderPref()}
     <p class="muted">${tr("{cmd} always builds on Kiri. A switch applies at once, in terminals already open too. Switching back to Docker puts docker's build settings back as they were before Kiri changed them.", { cmd: cmd("kiri build") })}</p>
@@ -4027,10 +4030,10 @@ function renderSettings() {
         <rect x="22" y="12" width="34" height="40" rx="10" fill="#E0B420"/><g clip-path="url(#lid2)"><rect x="10" y="0" width="60" height="21.5" fill="#F2CF5B"/></g>
         <g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g>
         <g fill="currentColor" opacity=".55"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></svg>
-      <div><div class="n">Kiri <span class="devband">DEV</span></div><div class="muted">${tr("A small, fast container runtime.")}</div></div></div>
+      <div><div class="n">Caskel <span class="devband">DEV</span></div><div class="muted">${tr("A small, fast container runtime.")}</div></div></div>
     ${aboutUpdate(a?.app)}
     <dl>
-      <dt>${tr("Engine")}</dt><dd>${a?.running ? `Kiri ${esc(a.engine)} · Docker API ${esc(a.api)}` : tr("Not running")}</dd>
+      <dt>${tr("Engine")}</dt><dd>${a?.running ? `Caskel ${esc(a.engine)} · Docker API ${esc(a.api)}` : tr("Not running")}</dd>
       <dt>${tr(VM)}</dt><dd>${a?.running ? `${a.awake ? tr("Running") : tr("Asleep")} · ${tr("kernel {version}", { version: esc(a.kernel) })}` : "—"}</dd>
       <dt>${tr("CPUs")}</dt><dd>${esc(a?.cpus ?? "—")}</dd>
       <dt>${tr("Memory")}</dt><dd>${a?.running ? tr("up to {size}", { size: mib(a.memory) }) : "—"}</dd>
@@ -5332,7 +5335,7 @@ function renderStatus() {
   const vmText = { running: tr("{vm} running", { vm: tr(VM) }), stopped: tr("{vm} off", { vm: tr(VM) }), booting: tr("Starting…"), stopping: tr("Stopping…") }[vshown] || vshown;
   const mem = ui.mem ? tr("{used} of {total}", { used: memText(ui.mem.used), total: `${Math.round(ui.mem.ceiling / 1024)} GB` }) : "";
   const parts = [
-    `<span class="item">${KDOT}<span>Kiri ${esc(ui.status?.version || "")}</span>${ui.status?.dev ? `<span class="dev" title="${tr("{app}: its own engine, containers and settings", { app: esc(ui.status?.app || "Kiri Dev") })}">DEV</span>` : ""}</span>`,
+    `<span class="item">${KDOT}<span>Caskel ${esc(ui.status?.version || "")}</span>${ui.status?.dev ? `<span class="dev" title="${tr("{app}: its own engine, containers and settings", { app: esc(ui.status?.app || "Caskel Dev") })}">DEV</span>` : ""}</span>`,
     usageItem(),
     updateChip(),
     pullItem(),
