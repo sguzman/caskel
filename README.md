@@ -59,6 +59,8 @@ The initial Nix build is headless on Linux (CLI and runtime agent).
 
 ## Roadmap
 
+The [verified development roadmap](docs/roadmap.md) tracks full-lifecycle milestones, evidence, and remaining acceptance gates.
+
 1. Independent project identity, reproducible Nix build and rollback-safe service.
 2. [Docker-to-Caskel migration tooling](docs/linux-migration-plan.md),
    with read-only inventory and dry-run first.
