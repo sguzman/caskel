@@ -11,7 +11,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use kiri_proto::{LayerBegin, LayerStored};
+use caskel_proto::{LayerBegin, LayerStored};
 
 use super::sys;
 

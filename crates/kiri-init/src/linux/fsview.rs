@@ -8,7 +8,7 @@ use std::io;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::path::Path;
 
-use kiri_proto::FsEntry;
+use caskel_proto::FsEntry;
 
 use super::sys;
 
