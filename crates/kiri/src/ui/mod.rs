@@ -394,7 +394,7 @@ pub(crate) fn reveal(path: &std::path::Path) {
 /// Caskel's local UI state; Linux normally uses its own service socket.
 /// Preserve the `KIRI_SOCKET` compatibility override used by tests.
 pub(crate) fn state_dir() -> Option<std::path::PathBuf> {
-    if std::env::var_os("KIRI_SOCKET").is_none() {
+    if std::env::var_os("CASKEL_SOCKET").is_none() && std::env::var_os("KIRI_SOCKET").is_none() {
         return std::env::var_os("HOME").map(|h| std::path::Path::new(&h).join(crate::flavor::STATE.get()));
     }
     client::socket().ok()?.parent()?.parent().map(std::path::Path::to_path_buf)

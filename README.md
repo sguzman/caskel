@@ -30,9 +30,9 @@ nix build .#caskel
 ```
 
 The flake exposes `packages.caskel`, `packages.default`, `apps.default`,
-`checks.caskel`, and `devShells.default`. The source Cargo packages retain
-upstream names internally (`kiri` and `kiri-init`) to ease upstream
-integration; the Nix package installs the public `caskel` command.
+`checks.caskel`, and `devShells.default`. The Cargo packages are now Caskel-named (`caskel`, `caskel-init`, and
+supporting `caskel-*` crates). Only compatibility-sensitive protocol fields,
+legacy runtime paths and the `kiri-init` executable symlink retain older names.
 
 **Building alone does not install or start a privileged service.** Follow
 [the Arch / EndeavourOS installation guide](nix/systemd/README.md) for a
@@ -94,3 +94,13 @@ not provide consent to send Caskel reports, account tokens or workload
 metadata. The opt-in is only for intentional compatibility with an
 upstream-operated service. There is **no Caskel Cloud** service or
 automatic report-upload agreement.
+
+## Runtime configuration identity
+
+On Linux, prefer `CASKEL_SOCKET`, `CASKEL_DATA_DIR`,
+`CASKEL_AGENT`, `CASKEL_SOCKET_GROUP`, `CASKEL_HTTP_PORT`, and
+`CASKEL_HTTPS_PORT`. The older `KIRI_*` spellings still work as fallbacks
+for pinned legacy units and test configurations; when both spellings are
+set, the Caskel form takes precedence. The shipped `caskel.service` uses
+only the canonical Caskel variables. Updating source does **not** replace a
+locally deployed systemd unit or restart an engine.

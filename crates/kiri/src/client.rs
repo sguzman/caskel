@@ -13,7 +13,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 pub fn socket() -> io::Result<PathBuf> {
-    if let Some(s) = std::env::var_os("KIRI_SOCKET") {
+    if let Some(s) = std::env::var_os("CASKEL_SOCKET").or_else(|| std::env::var_os("KIRI_SOCKET")) {
         return Ok(PathBuf::from(s));
     }
     // Linux: prefer the independent Caskel service, never the original Kiri socket.

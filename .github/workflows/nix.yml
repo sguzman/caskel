@@ -38,8 +38,12 @@ jobs:
           test -L result/bin/kiri-init
           test -f result/lib/systemd/system/caskel.service
           grep -Fq 'ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon' result/lib/systemd/system/caskel.service
-          grep -Fq 'KIRI_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
-          grep -Fq 'KIRI_DATA_DIR=/var/lib/caskel-daemon/data' result/lib/systemd/system/caskel.service
+          grep -Fq 'CASKEL_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
+          grep -Fq 'CASKEL_DATA_DIR=/var/lib/caskel-daemon/data' result/lib/systemd/system/caskel.service
+          grep -Fq 'CASKEL_AGENT=/nix/var/nix/profiles/caskel/bin/caskel-init' result/lib/systemd/system/caskel.service
+          grep -Fq 'CASKEL_SOCKET_GROUP=docker' result/lib/systemd/system/caskel.service
+          grep -Fq 'CASKEL_HTTP_PORT=18080' result/lib/systemd/system/caskel.service
+          grep -Fq 'CASKEL_HTTPS_PORT=18443' result/lib/systemd/system/caskel.service
       # The Nix package intentionally skips privileged integration tests.
       # Compile *all* test modules; run the unprivileged suite on this hosted
       # runner. Ownership-preserving layer extraction and DNS bind tests need
@@ -104,6 +108,10 @@ jobs:
           sudo systemctl is-active --quiet caskel.service
           test -S /run/caskel/docker.sock
           BIN=/nix/var/nix/profiles/caskel/bin/caskel
+          # Canonical Caskel socket overrides old Kiri settings. The legacy
+          # spelling still works for pinned profiles and explicit clients.
+          sudo env KIRI_SOCKET=/run/caskel/nonexistent.sock CASKEL_SOCKET=/run/caskel/docker.sock "$BIN" ps >/dev/null
+          sudo env KIRI_SOCKET=/run/caskel/docker.sock "$BIN" ps >/dev/null
           sudo "$BIN" run --rm --network none alpine:3.21 sh -c 'grep -Eq "^Seccomp:[[:space:]]*2" /proc/self/status'
           profile=$(mktemp)
           printf '%s\n' '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["mkdir","mkdirat"],"action":"SCMP_ACT_ERRNO"}]}' > "$profile"
