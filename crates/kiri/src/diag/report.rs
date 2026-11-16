@@ -37,10 +37,10 @@ use super::Part;
 use crate::daemon::time;
 
 const USAGE: &str = "\
-usage: kiri diag logs [-f] [--ui|--engine|--cli] [--errors] [--op ID] [-n N]
-       kiri diag report [--out PATH] [--send]
+usage: caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [--op ID] [-n N]
+       caskel diag report [--out PATH] [--send]
 
-logs     Kiri's own log, oldest first: the window (--ui), the engine
+logs     Caskel's own log, oldest first: the window (--ui), the engine
          (--engine) and the command line (--cli), all three by default.
          --errors keeps warnings and errors; --op ID one window action's
          lines (the id an error's Details show); -n N lines (default 50);
@@ -48,7 +48,7 @@ logs     Kiri's own log, oldest first: the window (--ui), the engine
 report   One file to send us: versions, whether the engine runs, recent
          log lines and crashes, with your home folder and any tokens taken
          out. Saved to the Desktop (or --out PATH). --send also sends it to
-         Kiri Cloud and prints its id.";
+         the explicitly opted-in legacy Kiri Cloud endpoint (off by default).";
 
 /// A report body may be at most this big.
 pub const MAX_BODY: usize = 1 << 20;
