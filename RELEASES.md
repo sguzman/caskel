@@ -1,71 +1,60 @@
-# How Kiri releases are built
+# Caskel releases and reproducibility
 
-Kiri's source is all here. Releases are built from it by a private
-repository that holds only the build workflows. This page says what
-that repository does, what it doesn't, and how you can check what you
-download.
+Caskel is an independent Linux-first fork of
+[libracoder/kiri](https://github.com/libracoder/kiri). It does not use
+upstream Kiri's download feeds, Mac notarization, Windows installers,
+private signing infrastructure, or release promises.
 
-## Why the builds aren't public
+## Current distribution
 
-The release builds need our signing keys: Apple's Developer ID for the Mac,
-our Windows signing certificate, and the token that uploads to
-download.runkiri.com. Public CI runs code from anyone who opens a pull
-request, so machines that hold those keys can't be public CI runners. VS Code,
-IntelliJ and Chrome are built the same way: open source, released from the
-maker's own build machines.
+The supported artifact today is a **pinned Nix flake for x86_64-linux**.
+It packages the headless Rust engine, Linux agent and an optional systemd
+unit. The flake lock pins the Nix dependency graph; Cargo.lock pins Rust
+dependencies. CI evaluates and builds the package and tests Linux runtime
+behavior on a disposable host.
 
-## What a release is
+This source repository does **not yet publish a separately verified
+Caskel binary release channel**. Do not infer a new stable tag, signing
+key, auto-update feed, distribution repository, or guaranteed support
+window from upstream's old release notes.
 
-1. A version is tagged here as `vX.Y.Z`, signed by the maintainer.
-2. The private release repository checks out **this
-   repository at that tag**, with a read-only key. It has no source of its
-   own. The one change it makes is the version line in `Cargo.toml`, set
-   from the tag.
-3. It runs the scripts in this repository, the same ones anyone can read and
-   run:
-   - Mac: `cargo xtask guest`, `cargo xtask release` and `cargo xtask dmg`
-     (the VM's guest, the signed app, the disk image; all in `xtask/`), then
-     Apple's notarization (`xcrun notarytool`)
-   - Windows: `cargo xtask msi` (the installer, from `installer/windows`)
-   - Linux: `scripts/ci/linux-build.sh` (all `.deb` and `.rpm` packages),
-     then `packaging/linux/test-host.sh`, which installs them on Ubuntu and
-     Fedora and runs containers through them. A build that doesn't install
-     and run isn't released.
-4. The files are uploaded to download.runkiri.com, and the version goes
-   live (update feeds, website) only once the Mac, Windows and Linux builds
-   are all up. The upload scripts stay private, since they hold our
-   storage and signing setup; they upload and check files, nothing else.
+From a pinned, reviewed checkout:
 
-The Rust dependencies come from this repository's `Cargo.lock`. The docker CLI, Compose and buildx are downloaded
-at versions and SHA-256s pinned in `packaging/`.
+```fish
+nix flake check
+```
 
-## Where it runs
+```fish
+nix build .#caskel
+```
 
-On dedicated build machines that we control. They never run jobs from this
-public repository.
+These commands do **not** install or start a privileged service.
 
-## Checking what you download
+## Promotion and rollback policy
 
-- **Mac:** `Kiri.app` is signed with our Developer ID and notarized by Apple.
-  Check it with `codesign --verify --deep --strict -v /Applications/Kiri.app`
-  and `spctl -a -vv /Applications/Kiri.app`.
-- **Linux:** every release has `SHA256SUMS-linux` next to its packages.
-  Check with `sha256sum -c --ignore-missing SHA256SUMS-linux`.
-- **Windows:** Authenticode signing is being set up. Until it's in place the
-  installer is unsigned, and Windows SmartScreen asks before running it.
-- **Updates:** Kiri checks every update's SHA-256 against the release feed
-  before installing it. On the Mac it also checks that the new app is signed
-  by the same Developer ID team as the running one, not just signed by
-  someone.
+1. Review exact source commit and `flake.lock`/`Cargo.lock` changes.
+2. Require Nix build, Rust/unit, privileged disposable runtime smoke,
+   UI/i18n, CodeQL and performance acceptance where applicable.
+3. Inspect the generated unit and isolated socket/data paths.
+4. Test disposable workloads and preserve a known-good Nix profile generation.
+5. Deliberately promote the pinned derivation into the separate root-owned
+   Caskel profile. Do not automatically restart a running service.
+6. Verify production Docker was unaffected; retain rollback assets.
+7. For any future service migration, verify application-consistent backups
+   and restoration before switching production traffic.
 
-## Building it yourself
+The service integration guide provides explicit opt-in install and
+rollback commands. Package creation and profile promotion are separate
+operations.
 
-Everything that builds a release is in `xtask/`, `scripts/` and `packaging/`, so you can build
-the same tag yourself (see `CONTRIBUTING.md`). Builds aren't byte-for-byte
-reproducible yet, so your files won't match ours bit for bit. Making the Linux
-packages reproducible is planned.
+## Upstream and attribution
 
-## Reporting a problem
+Accept upstream changes selectively through reviewed `sync/*` branches.
+Keep Apache-2.0 `LICENSE`/`NOTICE` and original copyright provenance.
+Historical GPL guest-kernel corresponding-source materials are retained
+pending a separate provenance/legal review.
 
-If a download doesn't match its checksum or signature, or you think a release
-was tampered with, please report it privately as `SECURITY.md` describes.
+See [upstream policy](UPSTREAM.md),
+[Nix packaging](nix/README.md),
+[systemd installation/rollback](nix/systemd/README.md),
+and [verified development roadmap](docs/roadmap.md).

@@ -1,141 +1,111 @@
-# Development
+# Developing Caskel on Linux
 
-Building Kiri from source, running it, and how it fits together.
+Caskel is an independently maintained, Linux-first Rust container engine
+with a Docker-compatible API. Its headless runtime and agent use the host
+Linux kernel; they do not boot a macOS guest VM. The actively tested build
+target is **x86_64-linux**. The optional Linux GTK/WebKit window has not yet
+been packaged or accepted as part of the minimal Nix product.
 
-## Build
+## Enter the reproducible toolchain
 
-Needs Rust and, for the kernel and disk template, a Docker engine. Kiri can
-build its own kernel: `DOCKER_CONTEXT=kiri cargo xtask kernel`.
+From a Caskel source checkout, with Nix installed:
 
-```sh
-cargo xtask kernel    # guest/out/Image
-cargo xtask disk      # guest/out/data.img (sparse 64 GiB ext4 template)
-cargo xtask guest     # guest/out/initramfs.cpio
-cargo xtask host      # target/release/kiri, signed with the virtualization entitlement
+```fish
+nix develop
 ```
 
-For Intel Macs add `--arch x86_64` to `kernel`, `guest`, `host`, `app`,
-`dmg` and `release`: an x86-64 guest in `guest/out/x86_64` (a `bzImage`,
-cross-compiled on Apple Silicon), the host for `x86_64-apple-darwin`
-(`rustup target add x86_64-apple-darwin x86_64-unknown-linux-musl`), and
-`target/intel/Kiri.app` with Intel builds of the docker CLI, Compose and
-buildx, released as `Kiri-<version>-x86_64.dmg`/`.tar.gz` with its own feed,
-`latest-mac-x86_64.json`. Each Mac gets its own app rather than one universal
-app, which would carry both builds of the docker tools. On Intel there is
-no Rosetta for Linux: amd64 images run natively, and images with no amd64
-build are refused.
+Check the locked build inputs:
 
-On Windows, `cargo xtask windows-dev` builds the Linux engine, Kiri Linux and
-Docker tools into `target/kiri-windows-x86_64` with a debug `kiri-win.exe`.
-`cargo run -p kiri-win` uses that bundle automatically. Use `cargo xtask
-windows` for the release bundle and `cargo xtask msi` for the installer.
-Add `--arch arm64` to any of the three for Windows on Arm
-(`target/kiri-windows-aarch64`, `Kiri-<version>-arm64.msi`); testing it in
-a VM on a Mac is in [docs/testing-windows-arm.md](docs/testing-windows-arm.md).
-
-## Use
-
-```sh
-./target/release/kiri daemon &      # serves ~/.kiri/run/docker.sock; the VM boots on first use
-docker context create kiri --docker host=unix://$HOME/.kiri/run/docker.sock
-docker --context kiri run --rm alpine echo hello
-docker buildx create --name kiri-build --driver docker-container \
-  --driver-opt default-load=true --use kiri    # for docker build
-./target/release/kiri bench         # Kiri vs OrbStack vs Docker Desktop
-SOAK=600 tests/e2e.sh               # every check, then 600 runs watching for leaks
+```fish
+nix flake check
 ```
 
-Docker's commands also work as `kiri` commands, always on Kiri whatever
-docker context is selected: `kiri run`, `kiri ps`, `kiri exec`, `kiri logs`,
-`kiri build`, `kiri compose up` and the rest run the docker CLI against
-Kiri's socket. (`kiri import` is Kiri's own: it brings images, volumes and
-containers over from OrbStack or Docker Desktop.) The daemon-free tools
-that boot their own guest are `kiri raw run|pull|images|rmi`.
+Build the supported package:
 
-`kiri` keeps its data in `~/Library/Application Support/Kiri` (override with
-`KIRI_DATA_DIR`). It does not touch `/usr/local/bin/docker`.
-`/var/run/docker.sock` changes only when you ask: `kiri setup --docker-socket`
-(or the password prompt for `*.kiri.local` names) links it to Kiri's socket
-when no other engine has it, after macOS asks for an administrator password,
-and installs `/Library/LaunchDaemons/dev.kiri.docker-socket.plist` to put the
-link back after a restart. A socket another engine owns is never replaced.
+```fish
+nix build .#caskel
+```
+
+Inspect the output without installing it:
+
+```fish
+ls -l result/bin/caskel result/bin/kiri-init result/lib/systemd/system/caskel.service
+```
+
+The Cargo package names still include `kiri`, `kiri-init`, and
+`kiri-vmm`. These are internal compatibility names, not the product
+identity. `kiri-vmm` contains the **Linux agent process and Unix-socket
+transport** in `process.rs`; it must not be deleted as obsolete VM code.
 
 ## Architecture
 
+```text
+Docker-compatible client
+       |
+       | Docker Engine HTTP API on a private Unix socket
+       v
+caskel CLI / engine daemon
+       |
+       | Linux host agent transport (Unix sockets)
+       v
+kiri-init (managed Linux agent)
+       |
+       +-- Linux namespaces / cgroups / seccomp / overlayfs
+       +-- container processes on the host kernel
 ```
-docker CLI ─┐
-compose ────┼─ ~/.kiri/run/docker.sock ─► kiri daemon ── vsock ──► guest agent (PID 1)
-buildx ─────┤     Docker Engine API          owns the VM            clone3 → container
-kiri UI ────┘
+
+The isolated, opt-in production-facing profile uses:
+- `/nix/var/nix/profiles/caskel` for the installed Nix package;
+- `caskel.service` for systemd;
+- `/run/caskel/docker.sock` for the Docker-compatible API;
+- `/var/lib/caskel-daemon/data` for persistent engine state.
+
+The agent-related `KIRI_*` variables and some protocol/internal names
+remain intentionally for compatibility. Do not mass-rename them without
+mapping producers, consumers, persisted state and rollback expectations.
+
+## Tests
+
+For nonprivileged Rust unit tests:
+
+```fish
+nix develop --command cargo test --locked -p kiri -p kiri-proto -p kiri-vmm
 ```
 
-- **VM**: Apple's Virtualization.framework, driven from Rust through objc2.
-  A custom 10 MB kernel (`guest/kernel/`) built from allnoconfig, with one
-  patch that cuts virtio-pci reset waits from a scheduler tick to
-  microseconds, one that hands big TCP to the host as GSO, one that keeps
-  newly created FUSE files owner-readable, and an upstream GRO fix that keeps
-  forwarded packets segmentable. Rosetta is shared in over virtiofs and registered with
-  binfmt_misc.
-- **Guest agent**: a ~900 KB static Rust binary that is PID 1. One `poll()`
-  loop serves the host, reaps children, forwards container output, relays
-  ports, answers DNS and runs DHCP. `docker cp` and friends run in forked
-  children so a large copy never stalls it.
-- **Containers**: one `clone3` straight into new namespaces and the
-  container's cgroup (`CLONE_INTO_CGROUP`), overlayfs over layers unpacked
-  on an ext4 data disk, `pivot_root`, capabilities and a seccomp filter.
-  Networking is set up with hand-written rtnetlink and nf_tables messages.
-  No runc, no shim, no dockerd.
-- **Images**: pulled and pushed on the Mac (`crates/kiri-image`), streamed
-  into the guest once and unpacked there.
+Check source formatting:
 
-## Layout
+```fish
+nix develop --command cargo fmt --all -- --check
+```
 
-| Path | What |
-|------|------|
-| `crates/kiri` | the `kiri` binary: daemon, Docker API, CLI, UI, bench |
-| `crates/kiri-vmm` | Virtualization.framework VM |
-| `crates/kiri-init` | guest PID 1, agent and container runtime |
-| `crates/kiri-proto` | host ↔ guest wire protocol (no_std, no allocation per message) |
-| `crates/kiri-image` | image references, registry client, blob store, archives |
-| `guest/kernel` | kernel config and patches |
-| `tests/e2e.sh` | ~350 checks through the real `docker` CLI, plus a leak soak (`K8S=1` adds Kubernetes) |
-| `tests/linux-host.sh` | the Linux host build, driven in a privileged container |
-| `tests/finder-mount.sh` | the Mac's Finder mount at `~/Kiri`: covers only an empty folder or its own old mount, never your files or another mount |
-| `contrib/` | systemd unit, WSL2 and Windows install scripts |
-| `installer/windows` | the Windows MSI (WiX 5): `kiri.wxs`, licence, dialog bitmaps |
-| `packaging/` | Linux `.deb` and `.rpm` (`kiri` with the docker CLI, `kiri-lite` engine only), the Homebrew plan |
-| `xtask` | build tasks |
-| `bench/results.json` | measured results; the website keeps a copy |
-| `brand/` | brand (the website and raw benchmark output live outside this repository) |
+The UI i18n/page checks run in GitHub Actions. They need Python 3 and a
+supported headless Chrome/Chromium on the runner; the application is Rust,
+not a Python service.
 
-## Unexpected VM stops
+The Nix GitHub workflow also runs privileged Linux agent unit tests and
+disposable runtime smoke tests on an ephemeral CI VM. These checks exercise
+security profiles, an actual container and restart persistence. They are
+**not** proof that every Compose, volume, port, DNS, GUI or production
+migration scenario works.
 
-The daemon keeps the guest's serial console, kernel oopses included, in
-`~/.kiri/logs/guest-console.log` (Kiri Dev: in its own state folder). The file and two
-rotations (`.1`, `.2`) hold at most 1 MiB each. Files are private, credential
-patterns are redacted, and lines over 16 KiB are omitted. The unexpected-stop
-log line names this file. The console stays local; crash reports do not send it.
+Do not run privileged test suites against a host containing important
+containers or data. Run service cutover and storage migration tests in
+disposable environments with explicit rollback first.
 
-After a guest crash, Kiri automatically boots a new VM when containers were
-running with `always` or `unless-stopped`, then restarts them and increments
-their `RestartCount`. Crashes in a row back off from 100 ms to one minute;
-a VM that ran ten seconds starts the backoff over. A manual stop, kill or
-removal wins, including during that wait, and so does Kiri's Stop (Start
-brings them back); `no`, `on-failure` and containers that never ran stay
-down. If the new VM does not boot, recovery tries again, waiting longer
-each time up to a minute.
+## Docker coexistence and migration
 
-Before a replacement opens the data disk, Kiri confirms that the previous
-VM has stopped and releases its resources, even if relay threads still
-hold old links. It allows ten seconds for shutdown, then up to ten seconds
-for a confirmed forced stop. Errors and timeouts keep the previous VM
-owned and block replacement; recovery retries with backoff. This wait does
-not hold container lifecycle locks, so stop, kill and removal can cancel
-pending starts. Linux gives each guest process its own socket directory,
-so late destruction of an old link cannot remove its successor's sockets.
+The existing Docker service, default context, and
+`/var/run/docker.sock` remain untouched by ordinary builds. Caskel's
+socket and state are independent.
 
-The real-VM regression is an opt-in ignored test:
-`vm_loss_live_recovers_without_a_request`. Run its signed test binary with
-an isolated `HOME` and `KIRI_DATA_DIR` containing `alpine:latest` and no
-containers, `KIRI_GUEST_DIR` pointing to matching guest assets, and
-`KIRI_LIVE_VM_RECOVERY=1`. It force-stops only the VM it creates.
+The first Docker migration CLI milestone is read-only metadata inventory.
+A later dry-run must report unsupported features and conflicts; actual
+migration is service-by-service, with consistent backups and verified
+rollback. Never share live database storage read-write between Docker and
+Caskel.
+
+See [Nix packaging](../nix/README.md),
+[Arch/EndeavourOS systemd and rollback](../nix/systemd/README.md),
+[upstream policy](../UPSTREAM.md),
+[verification roadmap](roadmap.md), and
+[Docker migration plan](linux-migration-plan.md).
