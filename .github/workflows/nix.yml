@@ -2,9 +2,7 @@ name: Nix Linux build
 
 on:
   push:
-    branches:
-      - main
-      - feat/nix-flake
+    branches: [main]
     paths:
       - flake.nix
       - flake.lock
@@ -17,19 +15,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build x86_64-linux package
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write # Initial flake.lock bootstrap, only on feat/nix-flake.
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
       - uses: cachix/install-nix-action@v31
-      - name: Resolve and verify Nix inputs
-        run: nix flake lock
+      - name: Verify committed lockfile
+        run: |
+          nix flake lock
+          git diff --exit-code -- flake.lock
       - name: Evaluate and build
         run: |
           nix flake check --show-trace
@@ -39,13 +38,3 @@ jobs:
           test -f result/lib/systemd/system/kiri.service
           grep -Fq 'ExecStart=/nix/var/nix/profiles/kiri/bin/kiri daemon' result/lib/systemd/system/kiri.service
           grep -Fq 'KIRI_SOCKET=/run/kiri/docker.sock' result/lib/systemd/system/kiri.service
-      - name: Commit initial flake lock after successful build
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/nix-flake'
-        run: |
-          git add flake.lock
-          if ! git diff --cached --quiet; then
-            git -c user.name='github-actions[bot]' \
-                -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-                commit -m 'chore(nix): pin validated nixpkgs input'
-            git push
-          fi
