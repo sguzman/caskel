@@ -10,7 +10,6 @@ use std::cell::RefCell;
 use std::io;
 use std::sync::mpsc;
 
-use gtk::gdk_pixbuf::{Pixbuf, PixbufLoader};
 use gtk::glib;
 use gtk::prelude::*;
 use javascriptcore::ValueExt;
@@ -27,14 +26,13 @@ thread_local! {
 /// Before the page's own scripts: which system this is.
 const SHIM: &str = r#"window.KIRI_OS = "linux";"#;
 
-const ICON_PNG: &[u8] = include_bytes!("../../../../brand/icon/png/kiri-app-icon-512.png");
 
 /// `autostart` starts the engine as soon as the page has loaded; `view` picks
 /// the sidebar section to open on.
 pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
     // The desktop file's name, before GTK starts: on Wayland it's the window's
     // app id, which is how the dock finds Kiri's launcher and icon.
-    glib::set_prgname(Some("kiri"));
+    glib::set_prgname(Some("caskel"));
     gtk::init().map_err(|e| io::Error::other(format!("no display to open the window on ({e})")))?;
     let (tx, rx) = mpsc::channel();
     let engine_tx = tx.clone();
@@ -42,9 +40,9 @@ pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title(crate::flavor::APP.get());
-    if let Some(icon) = icon() {
-        window.set_icon(Some(&icon));
-    }
+    // Until Caskel has approved original artwork, use a system themed icon.
+    // Do not embed upstream Kiri logo/trademark assets in Caskel.
+    window.set_icon_name(Some("application-x-executable"));
     // 1280x800, never more than nine tenths of the screen, as on the Mac and Windows.
     let (mut w, mut h) = (1280, 800);
     if let Some(area) = gtk::gdk::Display::default().and_then(|d| d.primary_monitor().or_else(|| d.monitor(0))).map(|m| m.workarea()) {
@@ -91,13 +89,6 @@ pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
     gtk::main();
     let _ = engine.join();
     Ok(())
-}
-
-fn icon() -> Option<Pixbuf> {
-    let loader = PixbufLoader::new();
-    loader.write(ICON_PNG).ok()?;
-    loader.close().ok()?;
-    loader.pixbuf()
 }
 
 /// Runs JavaScript in the page. Callable from any thread.

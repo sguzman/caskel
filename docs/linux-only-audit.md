@@ -85,3 +85,14 @@ At audit time, the GitHub repository description still says “macOS, Windows an
 - Which `guest/kernel` artifacts are still legally/technically required after removing VM releases?
 - Which `KIRI_*` interfaces must be accepted temporarily to preserve existing systemd installations?
 - Which automated tests truly exercise Linux privilege boundaries, data persistence and networking?
+
+## Upstream brand assets (November 2026)
+
+The old `brand/` directory contained Kiri-specific generated SVGs, PNGs,
+Windows ICOs and an upstream logo generator. These were **not** Caskel
+artwork. The optional Linux GTK window originally embedded the Kiri 512px
+PNG, so removing the directory required first decoupling its icon loader.
+The GTK window now requests the desktop's generic application icon and
+advertises the `caskel` application identifier. This neutral placeholder
+is not a final logo or a completed review of embedded HTML/SVG UI branding.
+The original Apache-2.0 LICENSE/NOTICE and GPL kernel sources were preserved.
