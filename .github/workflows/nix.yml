@@ -43,6 +43,13 @@ jobs:
       # Compile *all* test modules; run the unprivileged suite on this hosted
       # runner. Ownership-preserving layer extraction and DNS bind tests need
       # the separate privileged Linux acceptance environment.
+      - name: Verify Linux-only Cargo workspace and lockfile
+        run: |
+          test ! -d crates/kiri-win
+          ! grep -Fq 'name = "kiri-win"' Cargo.lock
+          ! grep -Fq 'name = "objc2"' Cargo.lock
+          nix develop --command cargo metadata --locked --no-deps --format-version 1 > "$RUNNER_TEMP/caskel-cargo-metadata.json"
+          grep -Fq '"name":"kiri"' "$RUNNER_TEMP/caskel-cargo-metadata.json"
       - name: Check Linux-only xtask wrapper
         run: nix develop --command cargo check --locked -p xtask
       - name: Check Linux-only CLI usage

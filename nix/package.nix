@@ -15,8 +15,8 @@ rustPlatform.buildRustPackage {
 
   nativeBuildInputs = [ pkg-config ];
 
-  # Do not use cargo xtask linux: it invokes Docker and downloads packages
-  # dynamically, which would defeat Nix's sandboxed build model.
+  # Build the exact Rust packages inside Nix's sandbox. The Linux-only
+  # cargo xtask wrapper invokes this derivation, not the other way around.
   cargoBuildFlags = [
     "-p" "kiri"
     "-p" "kiri-init"
