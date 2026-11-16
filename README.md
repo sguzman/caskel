@@ -83,3 +83,14 @@ See [UPSTREAM.md](UPSTREAM.md) for our branching/integration process,
 [LICENSE](LICENSE) and [NOTICE](NOTICE). Existing documentation under
 `docs/` may still describe upstream Kiri until adapted, including platform
 features not yet tested in this fork.
+
+## Legacy Kiri Cloud separation
+
+Caskel is **not** Kiri Cloud. The inherited Share and diagnostics code
+still knows how to contact `edge.runkiri.com`, but it refuses that upstream
+endpoint unless the initiating process explicitly sets
+`CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1`. An old Kiri account or config file does
+not provide consent to send Caskel reports, account tokens or workload
+metadata. The opt-in is only for intentional compatibility with an
+upstream-operated service. There is **no Caskel Cloud** service or
+automatic report-upload agreement.
