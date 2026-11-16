@@ -41,8 +41,6 @@ mod images;
 #[cfg(unix)]
 mod guest;
 #[cfg(target_os = "linux")]
-mod hostaccess;
-#[cfg(target_os = "linux")]
 mod migrate;
 #[cfg(unix)]
 mod k8s;
@@ -106,12 +104,6 @@ fn main() -> ExitCode {
         Some("bridge") => bridge::run(&args[1..]),
         #[cfg(target_os = "linux")]
         Some("hostrelay") => hostrelay::run(),
-        // Linux hosts: what the window's onboarding needs root for (through pkexec).
-        #[cfg(target_os = "linux")]
-        Some("host-access") => match hostaccess::run(&args[1..]) {
-            Ok(code) => return ExitCode::from(code),
-            Err(e) => Err(e),
-        },
         #[cfg(target_os = "linux")]
         Some("migrate") => migrate::run(&args[1..]),
         #[cfg(unix)]

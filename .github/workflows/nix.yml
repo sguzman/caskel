@@ -58,6 +58,18 @@ jobs:
           printf '%s\n' "$help" | grep -Fq 'usage: caskel COMMAND'
           ! printf '%s\n' "$help" | grep -Eq 'caskel (setup|update|import|bench|boot)([[:space:]]|$)'
           ! printf '%s\n' "$help" | grep -Eq 'runkiri|Kiri Dev|kiri-win'
+      - name: Verify legacy Kiri host control is unreachable
+        run: |
+          test ! -f crates/kiri/src/hostaccess.rs
+          ! grep -Fq 'Some("host-access")' crates/kiri/src/main.rs
+          ! grep -Fq '/usr/bin/kiri' crates/kiri/src/ui/linux.rs
+          ! grep -Fq 'Command::new("pkexec")' crates/kiri/src/ui/linux.rs
+          ! grep -Fq 'context", "use"' crates/kiri/src/ui/linux.rs
+          ! grep -Fq 'Command::new("systemctl").arg("reboot")' crates/kiri/src/ui/linux.rs
+          if ./result/bin/caskel host-access root >/dev/null 2>&1; then
+            echo 'removed privileged legacy host-access command still succeeds' >&2
+            exit 1
+          fi
       - name: Linux agent transport unit tests
         run: nix develop --command cargo test --locked -p kiri-vmm
       - name: Linux Rust unit tests (unprivileged)
