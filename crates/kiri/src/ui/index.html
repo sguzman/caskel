@@ -3302,15 +3302,11 @@ function localUrl(c, name) {
   return `${scheme}://${chosen || (project ? `${c.Labels["com.docker.compose.service"]}.${project}` : name)}.${ui.suffix}${port}`;
 }
 
-/* The tiny Kiri: the mark's body, lid and eyes. */
-const KIRI_MARK = `<svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(6 0) skewX(-10)">
-  <clipPath id="lid-cloud"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath><rect x="22" y="12" width="34" height="40" rx="10" fill="#E0B420"/>
-  <g clip-path="url(#lid-cloud)"><rect x="10" y="0" width="60" height="21.5" fill="#F2CF5B"/></g>
-  <g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g>
-  <g fill="currentColor"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></svg>`;
-const KDOT = `<svg class="kdot" viewBox="0 0 30 32" aria-hidden="true"><g transform="skewX(-10) translate(5 0)"><rect x="2" y="1" width="26" height="30" rx="8" fill="#E0B420"/>
-  <path d="M2 9a8 8 0 0 1 8-8h10a8 8 0 0 1 8 8v-.5H2z" fill="#F2CF5B"/>
-  <ellipse cx="12" cy="15" rx="2.6" ry="3" fill="#0F1419"/><ellipse cx="20" cy="15" rx="2.6" ry="3" fill="#0F1419"/></g></svg>`;
+/* Original Caskel mark: container bracket and three stacked rails.
+   This code is independent of upstream Kiri's mascot and artwork. */
+const CASKEL_GLYPH = `<rect x="4" y="4" width="88" height="88" rx="21" fill="#14232D"/><path d="M65 25H41C27 25 21 33 21 48s6 23 20 23h24" fill="none" stroke="#54D7AA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><path d="M51 39h13M51 48h17M51 57h13" fill="none" stroke="#EAF9F4" stroke-width="4.5" stroke-linecap="round"/>`;
+const CASKEL_MARK = `<svg class="mark" viewBox="0 0 96 96" aria-hidden="true">${CASKEL_GLYPH}</svg>`;
+const KDOT = `<svg class="kdot" viewBox="0 0 32 32" aria-hidden="true"><g transform="scale(.3333)">${CASKEL_GLYPH}</g></svg>`;
 const localChip = (url) => `<button class="local" data-open="${esc(url)}" title="${tr("Open {url}", { url: esc(url) })}"><span>${esc(url.replace(/^https?:\/\//, ""))}</span></button>`;
 
 /* First open: two small pictures of the same app, by port and by name. */
@@ -3320,9 +3316,7 @@ const pictureBar = (url, kiri) => `<svg viewBox="0 0 160 84" aria-hidden="true">
   <rect x="10" y="20" width="140" height="18" rx="9" style="fill:var(--raised);stroke:var(--line)"/>
   <text x="20" y="32.5" font-size="9.5" style="font-family:var(--mono-font);fill:var(--text)">${url}</text>
   ${kiri ? "" : `<rect x="10" y="48" width="74" height="6" rx="3" style="fill:var(--line)"/><rect x="10" y="60" width="52" height="6" rx="3" style="fill:var(--line)"/>`}
-  ${kiri ? `<g transform="translate(67 44) skewX(-10)"><rect x="4" y="2" width="26" height="30" rx="8" fill="#E0B420"/>
-    <path d="M4 10a8 8 0 0 1 8-8h10a8 8 0 0 1 8 8v-.5H4z" fill="#F2CF5B"/>
-    <ellipse cx="14" cy="16" rx="2.6" ry="3" fill="#0F1419"/><ellipse cx="22" cy="16" rx="2.6" ry="3" fill="#0F1419"/></g>` : ""}
+  ${kiri ? `<g transform="translate(62 43) scale(.35)">${CASKEL_GLYPH}</g>` : ""}
 </svg>`;
 
 /* Linux: the window opens on this checklist, not the main window, until Kiri can run containers for
@@ -3343,7 +3337,7 @@ const ONB = [
   tr("Your account can use Kiri"), tr("Checked once the engine runs"), tr("Applies after you log out and back in"), tr("Allow access"),
   tr("docker uses Kiri"), tr("docker, Compose and Docker-socket tools reach Kiri"), tr("docker talks to another engine now"), tr("Checked once your account can use Kiri"), tr("Use Kiri"),
   tr("Builds"), tr("docker build runs on Kiri's builder"), tr("Set up Kiri's builder so docker build runs here. Nothing downloads until your first build"), tr("Set up")];
-const ONB_LOGO = `<svg class="logo" viewBox="100 100 824 824" aria-hidden="true"><defs><linearGradient id="onb-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B232C"/><stop offset="1" stop-color="#0F1419"/></linearGradient><radialGradient id="onb-gl" cx="0.62" cy="0.46" r="0.55"><stop offset="0" stop-color="#E0B420" stop-opacity="0.28"/><stop offset="1" stop-color="#E0B420" stop-opacity="0"/></radialGradient><linearGradient id="onb-bx" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDC23A"/><stop offset="1" stop-color="#CC9A0C"/></linearGradient><clipPath id="onb-ic"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#onb-bg)"/><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#onb-gl)"/><g transform="translate(154.2 136.6) scale(11.732)"><g transform="translate(6 0) skewX(-10)"><rect x="22" y="12" width="34" height="40" rx="10" fill="url(#onb-bx)"/><g clip-path="url(#onb-ic)" fill="#F2CF5B"><rect x="10" y="0" width="60" height="21.5"/></g><g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g><g fill="#F6F2EA"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></g></svg>`;
+const ONB_LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true">${CASKEL_GLYPH}</svg>`;
 const onbIcon = (name) => `<svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="${PH[name]}"/></svg>`;
 function onboarding(e) {
   ui.onb = { ...e, busy: null };
@@ -4026,10 +4020,7 @@ function renderSettings() {
   const a = about;
   const mib = (b) => (b ? `${(b / 1073741824).toFixed(1)} GB` : "—");
   const aboutPane = `<div class="pane about"><div class="about-head">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(6 0) skewX(-10)"><clipPath id="lid2"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath>
-        <rect x="22" y="12" width="34" height="40" rx="10" fill="#E0B420"/><g clip-path="url(#lid2)"><rect x="10" y="0" width="60" height="21.5" fill="#F2CF5B"/></g>
-        <g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g>
-        <g fill="currentColor" opacity=".55"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></svg>
+      ${CASKEL_MARK}
       <div><div class="n">Caskel <span class="devband">DEV</span></div><div class="muted">${tr("A small, fast container runtime.")}</div></div></div>
     ${aboutUpdate(a?.app)}
     <dl>
@@ -4037,10 +4028,10 @@ function renderSettings() {
       <dt>${tr(VM)}</dt><dd>${a?.running ? `${a.awake ? tr("Running") : tr("Asleep")} · ${tr("kernel {version}", { version: esc(a.kernel) })}` : "—"}</dd>
       <dt>${tr("CPUs")}</dt><dd>${esc(a?.cpus ?? "—")}</dd>
       <dt>${tr("Memory")}</dt><dd>${a?.running ? tr("up to {size}", { size: mib(a.memory) }) : "—"}</dd>
-      <dt>${tr("Website")}</dt><dd><a data-open-site="https://runkiri.com">runkiri.com</a></dd>
-      <dt>${tr("Made by")}</dt><dd><a data-open-site="https://canestack.com">Canestack Labs</a></dd>
+      <dt>${tr("Website")}</dt><dd><a data-open-site="https://github.com/sguzman/caskel">Caskel on GitHub</a></dd>
+      <dt>${tr("Made by")}</dt><dd><a data-open-site="https://github.com/sguzman/caskel">Caskel maintainers</a></dd>
     </dl>
-    <p class="muted">${tr("The name comes from the Igbo word ntakịrị, “small”.")}</p></div>`;
+    <p class="muted">Caskel is an independent Linux-first fork of <a data-open-site="https://github.com/libracoder/kiri">Kiri</a>, distributed under Apache-2.0.</p></div>`;
   const html = `<div class="settings"><div class="tabs">${tab("appearance", "textaa", tr("Appearance"))}${tab("resources", "stack", tr("Resources"))}${tab("network", "globe", tr("Network"))}${tab("builds", "hammer", tr("Builds"))}${loginsOn() ? tab("registries", "lock", tr("Registries")) : ""}${tab("kubernetes", "pods", "Kubernetes")}${tab("import", "stack", tr("Import"))}${tab("domains", "network", tr("Domains"))}${tab("diagnostics", "bug", tr("Diagnostics"))}${tab("about", "info", tr("About"))}</div>
     ${prefs.tab === "diagnostics" ? diagPane() : prefs.tab === "about" ? aboutPane : prefs.tab === "domains" ? domainsPane : prefs.tab === "resources" ? `<div class="panes">${enginePane()}${resourcesPane()}</div>` : prefs.tab === "network" ? networkPane() : prefs.tab === "builds" ? buildsPane() : prefs.tab === "registries" && loginsOn() ? registriesPane() : prefs.tab === "kubernetes" ? kubernetesPane() : prefs.tab === "import" ? importPane() : appearance}</div>`;
   // The container lists arrive every few seconds; rebuilding an unchanged page
@@ -8520,7 +8511,7 @@ function shCardOne(it) {
   // Visitors → Kiri Cloud → the container: a dot travels along for each request.
   const flow = `<div class="sh-flow" aria-hidden="true">
       ${node(shSvg("globe"), tr("Visitors"))}
-      <div class="sh-lane"></div>${node(KIRI_MARK, "Kiri Cloud", "kiri")}<div class="sh-lane"></div>
+      <div class="sh-lane"></div>${node(CASKEL_MARK, "Kiri Cloud", "kiri")}<div class="sh-lane"></div>
       ${node(kShTile(it) || (c ? tile(c.icon, "cube") : `<div class="tile">${shGlobe}</div>`), `${esc(kShName(it))}${port ? `<em>:${port}</em>` : ""}`)}</div>`;
   return `<div class="dialog sh-dlg" role="dialog" aria-modal="false" aria-labelledby="sh-dlg-t">
     <button class="sh-x" data-close aria-label="${tr("Hide")}">×</button>
