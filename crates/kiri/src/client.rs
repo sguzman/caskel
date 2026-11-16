@@ -142,11 +142,13 @@ fn send(method: &str, path: &str, body: Option<&Value>, extra: &str) -> io::Resu
     Ok(Response { status, body })
 }
 
-/// Kiri's own version from a `/version` answer: `KiriVersion`, or `Version`
-/// from an engine older than that field (it reported Kiri's version there;
-/// it is now the Docker Engine version clients gate on).
+/// Caskel's own version from a `/version` answer. Prefer the new field;
+/// preserve the historic KiriVersion and pre-compatibility Version fallback.
+/// The helper keeps its internal name until existing consumers are migrated.
 pub fn kiri_version(version: &Value) -> Option<&str> {
-    version["KiriVersion"].as_str().or_else(|| version["Version"].as_str())
+    version["CaskelVersion"].as_str()
+        .or_else(|| version["KiriVersion"].as_str())
+        .or_else(|| version["Version"].as_str())
 }
 
 pub fn get(path: &str) -> io::Result<Value> {

@@ -310,7 +310,7 @@ fn route(req: &Request, engine: &Arc<Engine>, w: &mut UnixStream, r: &mut BufRea
         }
     }
     crate::diag::warn!("unsupported request", method = m, path = p);
-    http::error(w, 404, &format!("Kiri does not support {m} {p} yet"))?;
+    http::error(w, 404, &format!("Caskel does not support {m} {p} yet"))?;
     Ok(Next::KeepAlive)
 }
 
@@ -381,23 +381,23 @@ fn parse_release(raw: &str) -> Option<String> {
     (!release.is_empty()).then(|| release.to_owned())
 }
 
-/// The Docker Engine release whose API Kiri serves (`http::API_VERSION`,
-/// 1.47: Docker 27.3 to 27.5), reported as the engine's `Version`. Clients
-/// gate on it as a Docker version (Testcontainers wants at least 1.6.0), so
-/// Kiri's own version there read as an ancient engine. Kiri's own version is
-/// `KiriVersion`, and a component named "Kiri". Moves with `API_VERSION`.
+/// The Docker Engine version Caskel emulates for client compatibility.
+/// This is deliberately not Caskel's own Cargo version. CaskelVersion is
+/// the public product version; KiriVersion remains an explicit legacy
+/// compatibility alias until the old GUI/agent consumers are migrated.
 pub const ENGINE_VERSION: &str = "27.5.1";
 
 fn version() -> Value {
-    let kiri = env!("CARGO_PKG_VERSION");
+    let caskel = env!("CARGO_PKG_VERSION");
     json!({
-        "Platform": {"Name": "Kiri"},
+        "Platform": {"Name": "Caskel"},
         "Components": [
             {"Name": "Engine", "Version": ENGINE_VERSION, "Details": {"ApiVersion": http::API_VERSION, "MinAPIVersion": "1.24", "Arch": go_arch(), "Os": "linux", "KernelVersion": kernel_version(), "GoVersion": "n/a (Rust)", "GitCommit": ""}},
-            {"Name": "Kiri", "Version": kiri, "Details": {}},
+            {"Name": "Caskel", "Version": caskel, "Details": {}},
         ],
         "Version": ENGINE_VERSION,
-        "KiriVersion": kiri,
+        "CaskelVersion": caskel,
+        "KiriVersion": caskel,
         "ApiVersion": http::API_VERSION,
         "MinAPIVersion": "1.24",
         "Os": "linux",
@@ -414,8 +414,8 @@ fn info(engine: &Engine) -> Value {
     let images = engine.store.images().map(|v| v.len()).unwrap_or(0);
     let (mem_total, _) = engine.guest_memory().unwrap_or((0, 0));
     json!({
-        "ID": "kiri",
-        "Name": "kiri",
+        "ID": "kiri", // Retain daemon identity for legacy Docker clients.
+        "Name": "caskel",
         "Containers": states.len(),
         "ContainersRunning": running,
         "ContainersPaused": 0,
@@ -423,8 +423,9 @@ fn info(engine: &Engine) -> Value {
         "Images": images,
         "Driver": "overlayfs",
         "ServerVersion": ENGINE_VERSION,
+        "CaskelVersion": env!("CARGO_PKG_VERSION"),
         "KiriVersion": env!("CARGO_PKG_VERSION"),
-        "OperatingSystem": "Kiri",
+        "OperatingSystem": "Caskel on Linux",
         "OSType": "linux",
         "Architecture": std::env::consts::ARCH,
         "KernelVersion": kernel_version(),
@@ -2779,20 +2780,24 @@ mod tests {
 
     /// Testcontainers gates on the engine version as a Docker version.
     #[test]
-    fn version_is_a_docker_engine_version_and_kiri_is_beside_it() {
+    fn version_reports_caskel_without_breaking_legacy_version_clients() {
         let v = version();
         let major: u32 = v["Version"].as_str().unwrap().split('.').next().unwrap().parse().unwrap();
         assert!(major >= 25, "{v}");
         assert_eq!(v["Version"], ENGINE_VERSION);
         assert_eq!(v["Components"][0]["Name"], "Engine");
         assert_eq!(v["Components"][0]["Version"], ENGINE_VERSION);
-        assert_eq!(v["KiriVersion"], env!("CARGO_PKG_VERSION"));
-        assert!(v["Components"].as_array().unwrap().iter().any(|c| c["Name"] == "Kiri" && c["Version"] == env!("CARGO_PKG_VERSION")));
+        assert_eq!(v["Platform"]["Name"], "Caskel");
+        assert_eq!(v["CaskelVersion"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(v["KiriVersion"], v["CaskelVersion"], "keep the old KiriVersion field until consumers migrate");
+        assert!(v["Components"].as_array().unwrap().iter().any(|c| c["Name"] == "Caskel" && c["Version"] == env!("CARGO_PKG_VERSION")));
         // The docker CLI reads every component's Details as strings.
         for c in v["Components"].as_array().unwrap() {
             assert!(c["Details"].as_object().unwrap().values().all(Value::is_string), "{c}");
         }
         assert_eq!(crate::client::kiri_version(&v), Some(env!("CARGO_PKG_VERSION")));
+        assert_eq!(crate::client::kiri_version(&json!({"CaskelVersion": "3.0.0", "KiriVersion": "1.0.0", "Version": ENGINE_VERSION})), Some("3.0.0"));
+        assert_eq!(crate::client::kiri_version(&json!({"KiriVersion": "0.3.0", "Version": ENGINE_VERSION})), Some("0.3.0"));
         // An engine from before KiriVersion: its Version was Kiri's.
         assert_eq!(crate::client::kiri_version(&json!({"Version": "0.2.0"})), Some("0.2.0"));
     }
