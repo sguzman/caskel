@@ -18,12 +18,12 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | C2 | Prune Windows workspace, Apple dependencies, stale platform translations while retaining Linux runtime | 4 | 4 | Verified — PR #11 |
 | C3a | Remove unreachable Mac guest boot code and narrow Linux agent launch config | 2 | 2 | Verified — PR #12; all four checks passed |
 | C3b | Retire AppKit UI/backend and Mac-only UI strings, preserving Linux GTK path | 2 | 2 | Verified — PR #13; four workflows passed (optional GTK build still pending) |
-| C4 | Audit and retire or adapt remaining unused guest kernels, platform assets and Linux packaging paths | 4 | 0 | Pending — validate dependencies before deletion |
+| C4 | Audit and retire or adapt remaining unused guest kernels, platform assets and Linux packaging paths | 4 | 1 | Partial — old installers and orphan scripts retired in PRs #15–#16; kernel and branding audit pending |
 | C5 | Rebrand internal agent/crate and runtime/public names with an explicit compatibility and rollback plan | 4 | 0 | Pending — preserve `KIRI_*` aliases until assessed |
 | D1 | Accurate Linux-first README and documented upstream-cherry-pick policy | 2 | 2 | Verified — PR #5, `UPSTREAM.md` |
-| D2 | Rewrite development, feature, security, release and contributor documentation for tested Linux behavior | 4 | 0 | Pending |
+| D2 | Rewrite development, feature, security, release and contributor documentation for tested Linux behavior | 4 | 4 | Verified — PR #18, four CI workflows |
 | D3 | Remove upstream product branding from current-facing UI/assets; retain legally required provenance | 4 | 0 | Pending |
-| E1 | Native, read-only Docker inventory of containers, images, networks, Compose projects and persistence | 7 | 0 | Pending |
+| E1 | Native, read-only Docker inventory of containers, images, networks, Compose projects and persistence | 7 | 5 | Partial — PR #17, GET-only source, populated fixture and disposable live Docker smoke; representative user-host QA remains |
 | E2 | Deterministic non-mutating migration dry-run with collision, gap, storage and rollback diagnostics | 8 | 0 | Pending |
 | F1 | Verified image transfer from Docker/registry into Caskel | 4 | 0 | Pending |
 | F2 | Recreate supported Compose/containers/networking without hijacking Docker | 4 | 0 | Pending |
@@ -32,13 +32,13 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | G1 | Multi-service Linux acceptance matrix for security, Compose, DNS/ports, data retention and restart/restore | 5 | 0 | Pending |
 | G2 | Pinned release and staged real-host promotion with repeatable rollback evidence | 5 | 0 | Pending — never auto-redeploy production |
 
-**Verified score at PR #13:** 39 / 100. **Before this continuation (PR #11):** 35 / 100. PR #12 contributed +2 points and PR #13 contributed +2 points after all four workflows passed and both changes were merged. Host GUI compilation/QA is not implied by passing HTML page tests.
+**Verified score after PR #18 and PR #17:** 49 / 100. **Before this continuation (PR #13):** 39 / 100. The verified delta is **+10** points: legacy packaging/scripts audit +1 (PRs #15–#16), Linux-native core documentation +4 (PR #18), and the tested first read-only Docker inventory +5 (PR #17). The inventory has 2 points reserved for QA on a representative user Docker host. Host GTK compilation/QA and production cutovers remain separate acceptance gates.
 
 ## Current priorities
 
 1. Complete source-led platform artifact/kernel audit; keep `kiri-vmm/src/process.rs`, which is the Linux agent transport, regardless of its historic name.
 2. Map all old/new config, socket, storage, package and protocol consumers before internal rebranding. Avoid breaking installed Caskel or the old Kiri rollback copy.
-3. Build read-only Docker discovery before implementing any write path. Then implement dry-run planning and reversible cutovers.
+3. Validate the read-only Docker inventory against a representative existing Docker host (no changes), then implement the deterministic, non-mutating dry-run planner before any transfer or cutover.
 4. Expand disposable-host acceptance to realistic networking and persistent volumes before migration of actual services.
 
 ## Non-negotiable safety and completion gates
