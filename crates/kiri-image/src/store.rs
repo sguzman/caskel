@@ -128,19 +128,20 @@ pub fn digest_hex(digest: &str) -> io::Result<&str> {
 
 impl Store {
     /// The per-user data directory: `~/Library/Application Support/Kiri` on
-    /// macOS, `$XDG_DATA_HOME/kiri` (or `~/.local/share/kiri`) elsewhere.
+    /// macOS, `$XDG_DATA_HOME/caskel` (or `~/.local/share/caskel`) on Linux; other platforms keep kiri.
     /// `KIRI_DATA_DIR` overrides both.
     pub fn default_root() -> io::Result<PathBuf> {
         if let Some(dir) = std::env::var_os("KIRI_DATA_DIR") {
             return Ok(PathBuf::from(dir));
         }
         let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
+        let name = if cfg!(target_os = "linux") { "caskel" } else { "kiri" };
         Ok(if cfg!(target_os = "macos") {
             home.join("Library/Application Support/Kiri")
         } else if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
-            PathBuf::from(xdg).join("kiri")
+            PathBuf::from(xdg).join(name)
         } else {
-            home.join(".local/share/kiri")
+            home.join(".local/share").join(name)
         })
     }
 

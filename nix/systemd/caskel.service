@@ -1,0 +1,33 @@
+# Caskel Linux-first systemd service from the separate root-owned Nix profile.
+# Docker's default socket, context, and running services are not changed.
+# Never run the original Kiri daemon and Caskel simultaneously.
+[Unit]
+Description=Caskel Linux-first container engine (Nix profile)
+Documentation=https://github.com/sguzman/caskel
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/run/kiri/docker.sock
+
+[Service]
+Type=simple
+ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon
+Environment=KIRI_AGENT=/nix/var/nix/profiles/caskel/bin/kiri-init
+Environment=KIRI_SOCKET=/run/caskel/docker.sock
+Environment=KIRI_SOCKET_GROUP=docker
+Environment=KIRI_DATA_DIR=/var/lib/caskel-daemon/data
+Environment=KIRI_HTTP_PORT=18080
+Environment=KIRI_HTTPS_PORT=18443
+Environment=HOME=/var/lib/caskel-daemon
+StateDirectory=caskel-daemon
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/caskel-daemon
+RuntimeDirectory=caskel
+RuntimeDirectoryMode=0755
+UMask=0027
+Delegate=yes
+KillMode=mixed
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

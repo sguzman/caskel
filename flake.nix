@@ -1,5 +1,5 @@
 {
-  description = "Kiri container engine — reproducible Linux builds from the fork";
+  description = "Caskel — Linux-first Rust container runtime";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -12,21 +12,21 @@
     in
     {
       packages = forAllSystems (pkgs:
-        let kiri = pkgs.callPackage ./nix/package.nix { };
+        let caskel = pkgs.callPackage ./nix/package.nix { };
         in {
-          inherit kiri;
-          default = kiri;
+          inherit caskel;
+          default = caskel;
         });
 
       apps = forAllSystems (pkgs: {
         default = {
           type = "app";
-          program = "${self.packages.${pkgs.system}.kiri}/bin/kiri";
+          program = "${self.packages.${pkgs.system}.caskel}/bin/caskel";
         };
       });
 
       checks = forAllSystems (pkgs: {
-        kiri = self.packages.${pkgs.system}.kiri;
+        caskel = self.packages.${pkgs.system}.caskel;
       });
 
       devShells = forAllSystems (pkgs: {
