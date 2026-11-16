@@ -58,12 +58,17 @@ doas nix profile install --profile /nix/var/nix/profiles/kiri (realpath result)
 ```
 
 ```fish
-doas systemctl link (realpath /nix/var/nix/profiles/kiri/lib/systemd/system/kiri.service)
+doas systemctl link /nix/var/nix/profiles/kiri/lib/systemd/system/kiri.service
 ```
 
 ```fish
 systemctl cat kiri.service
 ```
+
+Use the stable profile path above rather than `realpath`: linking a specific
+`/nix/store` derivation would leave systemd pointing at an old unit after
+Kiri is upgraded or rolled back. `systemctl link` registers the unit without
+starting or enabling it.
 
 At this point systemd knows about Kiri, but it is **not started or enabled**.
 
