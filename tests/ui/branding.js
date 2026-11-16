@@ -20,4 +20,14 @@ t("user-provided workload names are not rewritten", () => {
   const v = tr("Kiri sees {name}", { name: "Kiri" });
   if (v !== "Caskel sees Kiri") throw new Error(v);
 });
+t("Linux setup describes only the isolated Caskel service and socket", () => {
+  onboarding({ complete: false, ready: false, checks: {
+    engine: "ok", running: "ok", access: "ok", docker: "off", builds: "off"
+  }, skipped: [], user: "qa" });
+  const words = document.querySelector("#onb")?.textContent || "";
+  if (!words.includes("caskel.service") || !words.includes("/run/caskel/docker.sock")) throw new Error(words.slice(0, 250));
+  if (words.includes("kiri.service") || words.includes("/run/kiri/docker.sock")) throw new Error("legacy Kiri paths shown in Caskel onboarding");
+  document.querySelector("#onb")?.remove();
+  ui.onb = null;
+});
 report(R);

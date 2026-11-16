@@ -1,6 +1,5 @@
-//! What the Mac's `setup`, `update` and `import` do for the window, as Linux
-//! does it: the package manager installs and updates Kiri, the engine is a
-//! system service, and there is no OrbStack to import from.
+//! Linux window integrations for Caskel's pinned Nix package, isolated
+//! systemd engine, and unsupported legacy Mac/Windows setup mechanisms.
 
 /// Explain an unreachable Caskel engine without acting on the old Kiri
 /// installation or modifying a user account.
@@ -34,7 +33,8 @@ pub mod setup {
         Ok(())
     }
 
-    /// The package's service provides /var/run/docker.sock (kiri.service).
+    /// Caskel's service socket is isolated; it never replaces Docker's
+    /// /var/run/docker.sock or switches the user's default context.
     pub fn docker_socket_note() -> Option<String> {
         None
     }
@@ -86,9 +86,9 @@ pub mod update {
         std::env::current_exe()
     }
 
-    /// The engine is the `kiri` system service, so restarting it is root's:
-    /// `kiri host-access --restart` through pkexec (one password prompt),
-    /// then the engine must answer as `expect`.
+    /// The Caskel daemon is an opt-in system service. GUI restart is
+    /// deliberately disabled until an explicit safe host-control workflow
+    /// exists; a restart request must never act on old Kiri or Docker.
     pub fn restart_engine(expect: &str) -> io::Result<String> {
         crate::diag::info!("restarting the engine", version = expect);
         super::onboarding::restart_engine()?;
@@ -104,8 +104,8 @@ pub mod update {
             std::thread::sleep(std::time::Duration::from_millis(250));
         }
         Err(io::Error::other(match last {
-            Some(v) => format!("the engine came back on {v}, not {expect}: is the kiri package upgraded?"),
-            None => "the engine did not come back: journalctl -u kiri says why".to_owned(),
+            Some(v) => format!("Caskel's engine reported {v}, not the requested {expect}; check the pinned Nix profile"),
+            None => "Caskel did not respond: inspect caskel.service with journalctl -u caskel.service".to_owned(),
         }))
     }
 

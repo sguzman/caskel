@@ -709,7 +709,7 @@ pub fn send_crash(name: &str) -> io::Result<String> {
         let text = std::fs::read_to_string(dir.join(name))?;
         return sent_id(&text).map(str::to_owned).ok_or_else(|| io::Error::other("it was sent, but its id isn't in the file"));
     }
-    let claimed = claim(&dir, name).ok_or_else(|| io::Error::other("Kiri is sending it already"))?;
+    let claimed = claim(&dir, name).ok_or_else(|| io::Error::other("Caskel is sending this report already"))?;
     send_claimed(&dir, name, &claimed, &Redactor::for_user())
 }
 

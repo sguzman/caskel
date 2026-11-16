@@ -1,6 +1,10 @@
 # Linux-only audit: Caskel migration inventory
 
-**Status:** initial source audit, 2026-11-16. This document is an inventory and proposed sequence, **not approval to delete all listed files**. Update it as each removal is verified. Caskel is a Linux-host container runtime with a Docker-compatible API, not a macOS/Windows desktop distribution.
+**Status:** historical source inventory from 2026-11-16, followed by
+verified disposition notes. Entries under "Initial dependency observations"
+describe **before-cleanup paths**, not necessarily files still present.
+This is **not approval to delete all listed files**. Update it as each
+removal is verified. Caskel is a Linux-host container runtime with a Docker-compatible API, not a macOS/Windows desktop distribution.
 
 ## Ground rules
 
@@ -30,7 +34,12 @@
 
 ## Public naming / state compatibility audit
 
-Current intentional compatibility debt includes Cargo package/crate names `kiri`, `kiri-init`, internal `KIRI_*` environment variables and agent-internal `/run/kiri` paths. These were retained during the first Caskel rebrand to enable safe upstream ports. Other public leaks remain, including `*.kiri.localhost`, old descriptions and some `caskel --help` entries advertising macOS/WSL-only features.
+Current Cargo package/crate names and the public agent binary use **Caskel**.
+Older `KIRI_*` settings (as compatibility fallbacks), `/kiri/*` HTTP
+extension paths, historic `~/.kiri` paths, and `*.kiri.localhost` DNS/TLS
+identities remain where they are external or persisted interfaces. These
+must not be mass-renamed without migration and rollback tests. Current CLI
+help no longer promotes macOS/WSL product targets.
 
 Before changing these, map every producer/consumer, persisted state field, socket, Docker context, environment variable, test and service unit. Plan an explicit compatibility/migration strategy for each external interface, then remove aliases only when verified. The running Caskel install uses the dedicated `/nix/var/nix/profiles/caskel` profile, `/run/caskel/docker.sock` and `/var/lib/caskel-daemon/data`. Old Kiri's profile/data are rollback assets, not cleanup targets.
 
@@ -46,7 +55,8 @@ Never click **Sync fork**, hard reset Caskel `main` to upstream, or auto-deploy 
 
 ## Verification gates before and after platform pruning
 
-1. Nix `x86_64-linux` flake/package builds and publishes `caskel`, `kiri-init` and the isolated systemd unit.
+1. Nix `x86_64-linux` flake/package builds `caskel`, `caskel-init`
+   (and the transitional `kiri-init` alias) plus the isolated systemd unit.
 2. Native Linux Rust unit tests for agent, protocol, security-policy compiler and core daemon.
 3. Disposable containers: pull/run/exec/logs/stop/remove, persistence through a daemon restart, and cleanup after unexpected process exit.
 4. Networking: isolated bridge, DNS, published-port collisions with existing Docker, firewall rules and Compose behavior.
@@ -111,3 +121,19 @@ The brand substitution explicitly preserves those provider names, as well as
 protocol variables `KIRI_*`, legacy paths (`~/.kiri`, `/run/kiri`) and
 `*.kiri.local` names that are not migrated yet. These are compatibility
 interfaces, not Caskel's public marketing name.
+
+## Branding disposition (current)
+
+- PRs #21, #22, #25–#29 renamed the public API, Linux UI, original SVG
+  assets, project/community templates, Cargo packages, diagnostics and
+  local share configuration; all passed four workflow suites.
+- The old Kiri screenshot at `docs/images/kiri-window.png` and unused
+  macOS DEV icon source at `xtask/dev-icon.swift` were removed from the
+  current source. The Apple entitlement file was also retired.
+- The actual product's license and original upstream copyright notices
+  stay intact. Guest-kernel GPL-2.0 corresponding-source materials remain
+  retained pending an explicit provenance/legal review.
+- Current, intentionally retained compatibility identities are itemized in
+  [the branding ledger](branding-compatibility.md).
+- No actual running host service or Docker installation was changed during
+  these repository-only branding patches.
