@@ -3,11 +3,10 @@
 
 Each test file runs in the real page (crates/kiri/src/ui/index.html, with its
 icons) after tests/ui/fixture.js, and calls report() with lines that start
-with PASS or FAIL. Exits non-zero if any test fails or a page errors. A
-test's first lines may say `// parity: macos windows linux` (run as each
-system and compare), `// lang: de` (the language it opens in), `// window:
-760x480` (the window's size) or `// page: setup` (Windows' setup window,
-crates/kiri-win/src/setup.html, instead of the main window).
+with PASS or FAIL. Exits non-zero if any test fails or a page errors. A test's first lines may say `// parity: macos windows linux` (legacy
+cross-platform parity scenario), `// lang: de` (the initial language), or
+`// window: 760x480` (the window's size). Caskel runs the Linux UI;
+obsolete Windows setup-window tests are not part of its suite.
 
     python3 scripts/ui-test.py [tests/ui/switch.js ...]
 """
@@ -70,26 +69,6 @@ def lang_of(test):
     return header(test, "lang", "system")
 
 
-def setup_page(test):
-    """kiri-win's setup window (crates/kiri-win/src/setup.html), for a test whose
-    first lines say `// page: setup`: as assemble.rs's words() builds it, with
-    the language step and the words for the language it opens in. `sent`
-    records what the page asks the host; host() answers langwords."""
-    packed, pick = strings(), lang_of(test)
-    src = (open(os.path.join(ROOT, "crates/kiri-win/src/setup.html")).read()
-           .replace("/*LANGSTEP*/", open(os.path.join(UI, "langstep.js")).read(), 1)
-           .replace("/*LANG*/", f"window.KIRI_LANG = {json.dumps({'os': ['en-US'], 'pick': pick})};", 1)
-           .replace("/*STRINGS*/{}", json.dumps(opening(pick, packed), ensure_ascii=False), 1))
-    # The page draws a host state on the next frame; headless Chrome's frames
-    # don't keep pace with --virtual-time-budget (the dump can come first), so
-    # a frame here is a task.
-    fixture = ('window.requestAnimationFrame = (f) => setTimeout(() => f(performance.now()), 0);\n'
-               'const sent = [];\n'
-               'window.webkit = { messageHandlers: { kiri: { postMessage: (m) => { const o = JSON.parse(m); sent.push({ type: o.cmd, ...o }); } } } };\n')
-    i = src.index("<script>")
-    src = src[:i] + CATCH + src[i:]
-    return src[: src.rindex("</body>")] + f"<script>{REPORT}\n{fixture}\n{host(packed)}\n{open(test).read()}</script></body></html>"
-
 
 def page(test, os_name=None):
     # As assemble.rs builds it: the icons and xterm.js spliced in, and the words
@@ -113,7 +92,7 @@ def run(test, os_name=None):
     if first.startswith("// parity:") and os_name is None:
         return parity(test, first.split(":", 1)[1].split())
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
-        f.write(setup_page(test) if header(test, "page") == "setup" else page(test, os_name))
+        f.write(page(test, os_name))
     # `// window: 760x480`: the page in a frame that size (headless Chrome's
     # window is wider than 500 and has its own bar), which passes the results out.
     size, load = header(test, "window"), f.name
