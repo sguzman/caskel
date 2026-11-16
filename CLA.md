@@ -1,3 +1,10 @@
+> **Historical upstream legal document — not a Caskel contributor agreement.**
+> This unchanged agreement names Canestack Labs and Kiri. It does not bind
+> new Caskel contributors or transfer grants to Caskel. The historical text
+> below is retained for provenance; see Caskel's CONTRIBUTING.md and LICENSE.
+>
+> ---
+
 # Kiri Contributor License Agreement
 
 Version 1.0

@@ -1,32 +1,26 @@
-## What this changes and why
+## Why and what changed
 
-<!-- One change per pull request. Say what it does and what problem it solves. -->
+<!-- One focused change; cite the issue and source files/contracts reviewed. -->
 
 Fixes #
 
-<!-- Anything larger than a small fix needs an issue we've agreed on first (see CONTRIBUTING.md). -->
+## Linux verification
 
-## How you tested it
+- [ ] nix flake check
+- [ ] nix build .#caskel
+- [ ] Relevant Rust tests
+- [ ] Applicable UI/i18n, CodeQL and Speed workflows
+- [ ] Disposable privileged runtime smoke if isolation/storage/networking changed
+- [ ] Docker's default socket, context, and existing workloads remain untouched
 
-<!-- On a real machine: the commands you ran and their output, before and after the change.
-     For the window, a screenshot of before and after. -->
+Tested on: <!-- distro, kernel, architecture, exact command/results -->
 
 ```text
-
 ```
 
-Tested on: <!-- macOS / Windows / Linux, and which version -->
+## Compatibility and rollback
 
-## How you found it
+<!-- Describe public API, internal KIRI_* aliases, file paths, migration state, and reversible cleanup when applicable. -->
+<!-- Never claim an untested service cutover or invent an upstream sign-off. -->
 
-- [ ] I use Kiri and ran into this myself
-- [ ] I found it by reading the code or comparing with Docker
-- [ ] Someone else reported it (link the issue above)
-
-AI tools used to write this change: <!-- yes / no; if yes, which parts -->
-
-## Checklist
-
-- [ ] I have at most 3 pull requests open on Kiri, this one included
-- [ ] `cargo fmt`, `cargo clippy` and the tests pass
-- [ ] It works on macOS, Windows and Linux, or the change only touches one of them
+AI tools used for this change: <!-- if applicable, identify code/review scope -->
