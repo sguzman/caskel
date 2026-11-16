@@ -2,11 +2,11 @@
 """Checks the window's translations (crates/kiri/src/ui/lang/*.json) against
 the words in use.
 
-English is the key: the pages' tr("…") and trn(n, "…", "…") (index.html, langstep.js and
-kiri-win's setup.html), index.html's data-i18n* attributes, and the Rust's
-tr("…") and trf("…") (the Mac's menus, the Windows tray, setup steps and the
-notices the app sends the page). Each language file must have every key, no
-key nothing uses, the same {placeholders} and tags as its key, and no ASCII
+English is the key: the Linux window's tr("…") and trn(n, "…", "…")
+(index.html and langstep.js), index.html's data-i18n* attributes,
+and the Rust UI's tr("…") and trf("…") strings. Each language file must
+contain every key, no unused key, the same {placeholders} and tags as its key,
+and no ASCII
 double quote (the words go into HTML attributes).
 
     python3 scripts/i18n-check.py            # check
@@ -16,11 +16,10 @@ import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI = os.path.join(ROOT, "crates/kiri/src/ui")
-PAGES = [os.path.join(UI, "index.html"), os.path.join(UI, "langstep.js"), os.path.join(ROOT, "crates/kiri-win/src/setup.html")]
+PAGES = [os.path.join(UI, "index.html"), os.path.join(UI, "langstep.js")]
 # The Rust that draws native words or sends the page words (notices, setup steps).
 # (lang.rs is the lookup itself: its tests call tr(lang, words).)
-NATIVE = sorted([os.path.join(UI, f) for f in os.listdir(UI) if f.endswith(".rs") and f != "lang.rs"]
-                + [os.path.join(ROOT, "crates/kiri-win/src", f) for f in os.listdir(os.path.join(ROOT, "crates/kiri-win/src")) if f.endswith(".rs")])
+NATIVE = sorted(os.path.join(UI, f) for f in os.listdir(UI) if f.endswith(".rs") and f != "lang.rs")
 # Words the native side looks up without a literal tr("…"): the engine states
 # shown in the menus ("Linux VM: Running").
 NATIVE_STATES = ["Not running", "Running", "Stopped", "Asleep"]
