@@ -254,6 +254,61 @@ mod tests {
     }
 
     #[test]
+    fn discovers_populated_docker_metadata_without_secret_values() {
+        use std::os::unix::net::UnixListener;
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!("caskel-inventory-fixture-{}-{}.sock",
+            std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+        let listener = UnixListener::bind(&path).unwrap();
+        let handle = std::thread::spawn(move || {
+            let replies = [
+                ("/version", serde_json::json!({"Version": "29.0.0"})),
+                ("/containers/json?all=1", serde_json::json!([{
+                    "Id": "abcdef", "Names": ["/database"], "Image": "postgres:16",
+                    "State": "running", "Ports": [{"PrivatePort": 5432, "PublicPort": 15432, "IP": "127.0.0.1", "Type": "tcp"}]
+                }])),
+                ("/images/json", serde_json::json!([{"Id": "sha256:img", "RepoTags": ["postgres:16"], "Size": 1000}])),
+                ("/volumes", serde_json::json!({"Volumes": [{"Name": "db-data", "Driver": "local", "Mountpoint": "/var/lib/docker/volumes/db-data"}]})),
+                ("/networks", serde_json::json!([{"Id": "netid", "Name": "project_net", "Driver": "bridge", "Internal": false}])),
+                ("/containers/abcdef/json", serde_json::json!({
+                    "Config": {"Env": ["PASSWORD=DO_NOT_EXPOSE"], "Labels": {
+                        "com.docker.compose.project": "demo", "api-token": "DO_NOT_EXPOSE"
+                    }},
+                    "Mounts": [{"Type": "volume", "Source": "/var/lib/docker/volumes/db-data", "Destination": "/data", "RW": true}],
+                    "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
+                    "NetworkSettings": {"Networks": {"project_net": {}}}
+                })),
+            ];
+            for (expected, value) in replies {
+                let (mut conn, _) = listener.accept().unwrap();
+                let mut request = [0; 2048];
+                let n = conn.read(&mut request).unwrap();
+                let request = std::str::from_utf8(&request[..n]).unwrap();
+                assert!(request.starts_with(&format!("GET {expected} HTTP/1.1\r\n")), "{request}");
+                let body = serde_json::to_vec(&value).unwrap();
+                conn.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).unwrap();
+                conn.write_all(&body).unwrap();
+            }
+        });
+        let inventory = discover(&path).unwrap();
+        assert_eq!(inventory["docker_version"], "29.0.0");
+        assert_eq!(inventory["compose_projects"][0], "demo");
+        assert_eq!(inventory["containers"][0]["name"], "database");
+        assert_eq!(inventory["containers"][0]["restart_policy"], "unless-stopped");
+        assert_eq!(inventory["containers"][0]["published_ports"][0]["host_port"], 15432);
+        assert_eq!(inventory["containers"][0]["networks"][0], "project_net");
+        assert_eq!(inventory["containers"][0]["mounts"][0]["destination"], "/data");
+        assert_eq!(inventory["images"][0]["tags"][0], "postgres:16");
+        assert_eq!(inventory["volumes"][0]["name"], "db-data");
+        assert_eq!(inventory["networks"][0]["name"], "project_net");
+        assert!(!inventory.to_string().contains("DO_NOT_EXPOSE"),
+            "container environment and arbitrary label values are private");
+        handle.join().unwrap();
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn source_transport_uses_get_only() {
         use std::os::unix::net::UnixListener;
         use std::sync::atomic::{AtomicU64, Ordering};
