@@ -39,7 +39,17 @@ jobs:
           grep -Fq 'ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_DATA_DIR=/var/lib/caskel-daemon/data' result/lib/systemd/system/caskel.service
-      # The Nix package intentionally skips privileged integration tests,
-      # but the agent and daemon's pure Linux unit tests must compile and pass.
-      - name: Linux Rust unit tests
-        run: nix develop --command cargo test --locked -p kiri-init -p kiri-proto -p kiri
+      # The Nix package intentionally skips privileged integration tests.
+      # Compile *all* test modules; run the unprivileged suite on this hosted
+      # runner. Ownership-preserving layer extraction and DNS bind tests need
+      # the separate privileged Linux acceptance environment.
+      - name: Linux Rust unit tests (unprivileged)
+        run: |
+          nix develop --command cargo test --locked -p kiri -p kiri-proto
+          nix develop --command cargo test --locked -p kiri-init --bin kiri-init -- \
+            --skip linux::dns::tests::every_forwarded_query_has_its_own_port_and_its_answer_goes_back \
+            --skip linux::layers::tests::expansion_is_capped \
+            --skip linux::layers::tests::layer_without_marker_is_replaced \
+            --skip linux::layers::tests::retain_deletes_unused_and_broken_layers \
+            --skip linux::layers::tests::symlink_parent_cannot_escape_layer \
+            --skip linux::layers::tests::whiteout_through_symlink_stays_in_layer
