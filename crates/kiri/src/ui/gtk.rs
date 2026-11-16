@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::io;
 use std::sync::mpsc;
 
+use gtk::gdk_pixbuf::{Pixbuf, PixbufLoader};
 use gtk::glib;
 use gtk::prelude::*;
 use javascriptcore::ValueExt;
@@ -25,6 +26,7 @@ thread_local! {
 
 /// Before the page's own scripts: which system this is.
 const SHIM: &str = r#"window.KIRI_OS = "linux";"#;
+const ICON_SVG: &[u8] = include_bytes!("../../../../brand/caskel-mark.svg");
 
 
 /// `autostart` starts the engine as soon as the page has loaded; `view` picks
@@ -40,9 +42,13 @@ pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title(crate::flavor::APP.get());
-    // Until Caskel has approved original artwork, use a system themed icon.
-    // Do not embed upstream Kiri logo/trademark assets in Caskel.
-    window.set_icon_name(Some("application-x-executable"));
+    // Original Caskel SVG mark, with a fallback if this GTK host has no
+    // gdk-pixbuf SVG loader. No Kiri trademark assets are embedded.
+    if let Some(icon) = icon() {
+        window.set_icon(Some(&icon));
+    } else {
+        window.set_icon_name(Some("application-x-executable"));
+    }
     // 1280x800, never more than nine tenths of the screen, as on the Mac and Windows.
     let (mut w, mut h) = (1280, 800);
     if let Some(area) = gtk::gdk::Display::default().and_then(|d| d.primary_monitor().or_else(|| d.monitor(0))).map(|m| m.workarea()) {
@@ -89,6 +95,13 @@ pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
     gtk::main();
     let _ = engine.join();
     Ok(())
+}
+
+fn icon() -> Option<Pixbuf> {
+    let loader = PixbufLoader::new();
+    loader.write(ICON_SVG).ok()?;
+    loader.close().ok()?;
+    loader.pixbuf()
 }
 
 /// Runs JavaScript in the page. Callable from any thread.
