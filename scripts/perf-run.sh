@@ -24,7 +24,11 @@ stop
 for e in base head; do
   bin=$BASE_BIN; [ $e = head ] && bin=$HEAD_BIN
   $SUDO rm -rf "$WORK/$e-run"; mkdir -p "$WORK/$e-run"
+  # Both upstream Kiri and Caskel honor these overrides; the benchmark
+  # compares engine performance, not their differently named default paths.
   docker run -d --name kiri-perf-$e --privileged --tmpfs /run \
+    -e KIRI_SOCKET=/root/.kiri/run/docker.sock \
+    -e KIRI_DATA_DIR=/root/.local/share/kiri \
     -v kiri-perf-$e-lib:/var/lib/kiri -v kiri-perf-$e-store:/root/.local/share/kiri \
     -v "$bin:/opt/kiri:ro" -v "$WORK/$e-run:/root/.kiri/run" \
     alpine:3.21 sh -c 'exec /opt/kiri/kiri daemon' >/dev/null
