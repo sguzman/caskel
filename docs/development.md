@@ -29,13 +29,15 @@ nix build .#caskel
 Inspect the output without installing it:
 
 ```fish
-ls -l result/bin/caskel result/bin/kiri-init result/lib/systemd/system/caskel.service
+ls -l result/bin/caskel result/bin/caskel-init result/lib/systemd/system/caskel.service
 ```
 
-The Cargo package names still include `kiri`, `kiri-init`, and
-`kiri-vmm`. These are internal compatibility names, not the product
-identity. `kiri-vmm` contains the **Linux agent process and Unix-socket
-transport** in `process.rs`; it must not be deleted as obsolete VM code.
+Cargo package names are now Caskel-native: `caskel`, `caskel-init`,
+`caskel-image`, `caskel-proto`, `caskel-share-proto`, and
+`caskel-agent-transport`. The historic *source directory names*
+(`crates/kiri-*`) remain for upstream patch compatibility. In particular,
+`crates/kiri-vmm/src/process.rs` implements **Linux process launch and
+Unix-socket transport**, not an obsolete guest VM.
 
 ## Architecture
 
@@ -48,7 +50,7 @@ caskel CLI / engine daemon
        |
        | Linux host agent transport (Unix sockets)
        v
-kiri-init (managed Linux agent)
+caskel-init (managed Linux agent)
        |
        +-- Linux namespaces / cgroups / seccomp / overlayfs
        +-- container processes on the host kernel
@@ -60,16 +62,17 @@ The isolated, opt-in production-facing profile uses:
 - `/run/caskel/docker.sock` for the Docker-compatible API;
 - `/var/lib/caskel-daemon/data` for persistent engine state.
 
-The agent-related `KIRI_*` variables and some protocol/internal names
-remain intentionally for compatibility. Do not mass-rename them without
-mapping producers, consumers, persisted state and rollback expectations.
+The canonical Linux service configuration uses `CASKEL_*` variables.
+Older `KIRI_*` spellings and protocol/path names remain supported as
+explicit compatibility fallbacks; they are **not** the product identity.
+See [branding and compatibility](branding-compatibility.md).
 
 ## Tests
 
 For nonprivileged Rust unit tests:
 
 ```fish
-nix develop --command cargo test --locked -p kiri -p kiri-proto -p kiri-vmm
+nix develop --command cargo test --locked -p caskel -p caskel-proto -p caskel-agent-transport
 ```
 
 Check source formatting:

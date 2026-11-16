@@ -3366,11 +3366,17 @@ function drawOnb() {
   const stateOf = (k) => (busy && covers(k) && c[k] !== "ok" ? "wait" : c[k]);
   const icon = (st) => st === "ok" ? onbIcon("check") : st === "bad" ? onbIcon("warning") : st === "restart" ? onbIcon("restart") : st === "wait" ? "" : onbIcon("dot");
   const say = (v) => (typeof v === "function" ? v(esc(o.user || tr("your account"))) : v ? tr(v) : "");
+  // Onboarding is Caskel's isolated Linux service, not the old Kiri
+  // installer. Preserve stable translation keys while correcting the
+  // service and socket paths shown in all languages.
+  const onbSay = (v) => say(v).replace(/kiri\.service/g, "caskel.service")
+    .replace(/\/run\/kiri\/docker\.sock/g, "/run/caskel/docker.sock")
+    .replace(/\bkiri\b/gi, "Caskel");
   const rows = ONB.map((row) => {
     const [k, title, words, fix, root] = row, st = stateOf(k), label = fixable(row), skip = isSkipped(k);
     const first = pending[0]?.[0] === k;
     const canSkip = ONB_SKIP[k] && label && !skip && o.ready;
-    const text = skip ? tr(ONB_SKIP[k]) : say(words[c[k]]);
+    const text = skip ? tr(ONB_SKIP[k]) : onbSay(words[c[k]]);
     const extra = skip ? `<button class="linkish" data-onbskip="${k}" data-undo="1"${busy ? " disabled" : ""}>${tr("Undo")}</button>`
       : canSkip ? `<button class="linkish" data-onbskip="${k}"${busy ? " disabled" : ""}>${tr("Skip")}</button>` : "";
     return `<div class="onb-row${skip ? " skipped" : ""}" data-check="${k}"><div class="st ${skip ? "no" : st}">${icon(skip ? "no" : st)}</div><div class="t"><div>${tr(title)}</div><p>${text}</p></div>${extra}${label && !skip ? `<button class="btn${first ? " primary" : ""}" data-onbfix="${k}"${busy ? " disabled" : ""}>${root ? onbIcon("lock") : ""}${tr(label)}</button>` : ""}</div>`;
@@ -3669,7 +3675,7 @@ function ctxStep(e) {
 function drawCtxCard() {
   const el = $("ctxcard"), c = ctx.card;
   if (!c) { el.hidden = true; el.innerHTML = ""; renderImportStrip(); return; }
-  const label = esc(ctxLabel(c.from)), app = esc(ui.status?.app || "Kiri"), n = c.done + c.failed;
+  const label = esc(ctxLabel(c.from)), app = esc(ui.status?.app || "Caskel"), n = c.done + c.failed;
   const body = !c.total ? `<div class="sub">${tr("Your {engine} images stay there. Bring them over any time from Settings → Import.", { engine: label })}</div>`
     : c.finished ? `<div class="sub">${c.failed ? trn(c.done, "Brought {n} item over from {engine}; {failed} failed (Settings → Import says why).", "Brought {n} items over from {engine}; {failed} failed (Settings → Import says why).", { engine: label, failed: c.failed }) : trn(c.done, "Brought {n} item over from {engine}.", "Brought {n} items over from {engine}.", { engine: label })}</div>`
     : `<div class="sub">${tr("Bringing your images over from {engine}: {done} of {total}.", { engine: label, done: n, total: c.total })}</div><div class="ctx-prog"><i style="width:${Math.round(n / c.total * 100)}%"></i></div><div class="sub">${tr("They appear in Images as they arrive.")}</div>`;
