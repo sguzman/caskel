@@ -203,12 +203,31 @@ fn rtl_ready(s: String) -> String {
 }
 
 /// `en` in `lang`, for words drawn natively; English when there's no translation.
-pub fn tr(lang: &str, en: &str) -> String {
-    match maps().get(lang).and_then(|m| m.get(en)) {
-        Some(w) if rtl(lang) => rtl_ready(w.clone()),
-        Some(w) => w.clone(),
-        None => en.to_owned(),
+/// Rebrand only the rendered Linux product name; preserve English keys,
+/// Kiri Cloud/Share as actual upstream services and old protocol/path tokens.
+fn caskel_wording(value: String) -> String {
+    if !cfg!(target_os = "linux") { return value; }
+    let mut out = String::with_capacity(value.len());
+    let mut rest = value.as_str();
+    while let Some(index) = rest.find("Kiri") {
+        let before = &rest[..index];
+        out.push_str(before);
+        let after = &rest[index + 4..];
+        let beginning = before.chars().next_back().is_none_or(|c| !c.is_ascii_alphanumeric() && c != '_');
+        let end = after.chars().next().is_none_or(|c| !c.is_ascii_alphanumeric() && c != '_');
+        let upstream = after.starts_with(" Cloud") || after.starts_with(" Share");
+        out.push_str(if beginning && end && !upstream { "Caskel" } else { "Kiri" });
+        rest = after;
     }
+    out.push_str(rest);
+    out
+}
+
+pub fn tr(lang: &str, en: &str) -> String {
+    let word = maps().get(lang).and_then(|m| m.get(en))
+        .cloned().unwrap_or_else(|| en.to_owned());
+    let word = caskel_wording(word);
+    if rtl(lang) { rtl_ready(word) } else { word }
 }
 
 /// `{name}` placeholders in `s` filled from `vars`, as the page's tr() does:
@@ -341,6 +360,19 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn linux_translates_the_caskel_product_name_without_touching_upstream_services() {
+        let sample = super::caskel_wording(
+            "Kiri starts; Kiri Dev, Kiri Cloud, Kiri Share, ~/.kiri/ui.json, KIRI_SOCKET, .kiri.local".into(),
+        );
+        if cfg!(target_os = "linux") {
+            assert_eq!(sample, "Caskel starts; Caskel Dev, Kiri Cloud, Kiri Share, ~/.kiri/ui.json, KIRI_SOCKET, .kiri.local");
+            assert_eq!(super::tr("en", "Build with Kiri"), "Build with Caskel");
+            assert!(super::tr("ja", "Build with Kiri").contains("Caskel"));
+            assert!(super::tr("es", "Build with Kiri").contains("Caskel"));
+        }
+    }
 
     #[test]
     fn tags_map_to_the_languages_kiri_has() {
