@@ -317,10 +317,22 @@ impl Spec {
         super::hostopts::ipv6_disabled(&self.host_opts, ifname)
     }
 
+    /// The program for `--security-opt seccomp=<profile>`, compiled for this
+    /// container's capabilities; empty for the default filter and for
+    /// `unconfined`. `--privileged` only drops the default filter: an
+    /// explicit profile still applies, as in moby's `WithSeccomp`. A profile
+    /// Kiri cannot apply is an error, never the default.
+    pub fn seccomp_program(&self) -> Result<Vec<u8>, Error> {
+        let super::seccomp::Choice::Profile(json) = super::seccomp::choice(&self.security_opt).map_err(Error::BadRequest)? else {
+            return Ok(Vec::new());
+        };
+        super::seccomp::compile(json, super::api::profile_caps(self.caps, self.privileged)).map_err(Error::BadRequest)
+    }
+
     /// The security flags for the guest: seccomp, no-new-privileges, read-only root.
     pub fn security_flags(&self) -> u32 {
         let mut f = 0;
-        if self.security_opt.iter().any(|o| o == "seccomp=unconfined" || o == "seccomp:unconfined") {
+        if matches!(super::seccomp::choice(&self.security_opt), Ok(super::seccomp::Choice::Unconfined)) {
             f |= run_flags::NO_SECCOMP;
         }
         if self.security_opt.iter().any(|o| o == "no-new-privileges" || o == "no-new-privileges:true" || o == "no-new-privileges=true") {
@@ -2154,7 +2166,14 @@ impl Engine {
             self.fail_start(&id, &spec, &e);
             return Err(e);
         }
-        match vm.run(&id, &layers, &argv, &spec.env, &spec.cwd, &spec.user, &hostname, flags, net_args, &spec.mounts, &spec.limits.wire(), spec.caps, &host_opts) {
+        let seccomp = match spec.seccomp_program() {
+            Ok(p) => p,
+            Err(e) => {
+                self.fail_start(&id, &spec, &e);
+                return Err(e);
+            }
+        };
+        match vm.run(&id, &layers, &argv, &spec.env, &spec.cwd, &spec.user, &hostname, flags, net_args, &spec.mounts, &spec.limits.wire(), spec.caps, &host_opts, &seccomp) {
             Ok(pid) => {
                 if let Some(c) = self.lock().containers.get_mut(&id).filter(|c| c.status == Status::Running) {
                     c.pid = pid;

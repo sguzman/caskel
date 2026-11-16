@@ -382,9 +382,10 @@ impl VmLink {
         limits: &kiri_proto::Limits,
         caps: u64,
         opts: &[String],
+        seccomp: &[u8],
     ) -> io::Result<u32> {
         self.windows.open(id);
-        let r = self.call(|o| kiri_proto::encode_run(o, id, layers, argv, env, cwd, user, hostname, flags, net, mounts, limits, caps, opts), None).and_then(started);
+        let r = self.call(|o| kiri_proto::encode_run(o, id, layers, argv, env, cwd, user, hostname, flags, net, mounts, limits, caps, opts, seccomp), None).and_then(started);
         if r.is_err() {
             self.windows.close(id);
         }

@@ -313,9 +313,12 @@ t dns-resolvconf "nameserver 127.0.0.11" $D run --rm --network appnet alpine cat
 # What a kind node's pods are given instead: host.docker.internal's address.
 t dns-via-host-addr "Address" $D run --rm --network appnet alpine nslookup svc 198.19.248.254
 t network-members "db" $D network inspect appnet -f '{{range .Containers}}{{.Name}} {{end}}'
+# A start that fails once its network is up leaves no name behind (#325).
+$D run -d --name dnsbad --network appnet --sysctl net.ipv4.kiri_no_such_key=1 alpine sleep 60 >/dev/null 2>&1
+t dns-failed-start-gone "none" $D run --rm --network appnet alpine sh -c 'nslookup dnsbad 2>&1 | grep -qE "^Address: [0-9.]+$" && echo answered || echo none'
 code network-rm-in-use 1 $D network rm appnet
 code network-dup 1 $D network create appnet
-$D rm -f db svc >/dev/null
+$D rm -f db svc dnsbad >/dev/null
 t network-rm "appnet" $D network rm appnet
 code network-rm-builtin 1 $D network rm bridge
 # --internal: no default route, so anything beyond the network fails at once
@@ -867,6 +870,46 @@ t vsock-unconfined "Address family not supported" $D run --rm --security-opt sec
 t vsock-privileged "Address family not supported" $D run --rm --privileged python:3.13-alpine python -c 'import socket; socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)'
 t seccomp-exec "Seccomp:	2" bash -c "$D run -d --name sec alpine sleep 30 >/dev/null; $D exec sec grep Seccomp: /proc/self/status"
 $D rm -f sec >/dev/null
+# docker info says the filter is on; a profile of the user's own is applied
+# (the CLI sends the file's JSON), under exec too, and one Kiri can't apply
+# fails the run instead of quietly giving the default.
+SCD=$(mktemp -d)
+echo '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["mkdir","mkdirat"],"action":"SCMP_ACT_ERRNO"}]}' > $SCD/deny-mkdir.json
+echo '{"defaultAction":"SCMP_ACT_NOPE"}' > $SCD/bad.json
+t seccomp-info "name=seccomp,profile=builtin" $D info --format '{{.SecurityOptions}}'
+t seccomp-custom-profile "not permitted" $D run --rm --security-opt seccomp=$SCD/deny-mkdir.json alpine mkdir /tmp/x
+t seccomp-custom-rest-allowed "hi" $D run --rm --security-opt seccomp=$SCD/deny-mkdir.json alpine echo hi
+t seccomp-bad-profile-refused "refused" bash -c "$D run --rm --security-opt seccomp=$SCD/bad.json alpine echo kiri-ran-it 2>&1 | grep -q '^kiri-ran-it' && echo ran || echo refused"
+t seccomp-bad-profile-says-why "SCMP_ACT_NOPE" $D run --rm --security-opt seccomp=$SCD/bad.json alpine echo kiri-ran-it
+t seccomp-vsock-custom "Address family not supported" $D run --rm --security-opt seccomp=$SCD/deny-mkdir.json python:3.13-alpine python -c 'import socket; socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)'
+t seccomp-exec-profile "not permitted" bash -c "$D run -d --name secx --security-opt seccomp=$SCD/deny-mkdir.json alpine sleep 30 >/dev/null; $D exec secx mkdir /tmp/y"
+$D rm -f secx >/dev/null
+# --privileged only drops the default filter: an explicit profile still applies.
+t seccomp-privileged-keeps-profile "not permitted" $D run --rm --privileged --security-opt seccomp=$SCD/deny-mkdir.json alpine mkdir /tmp/x
+# A profile that denies seccomp() itself still starts: the host boundary goes
+# in first and the profile is the last seccomp() call, as under runc.
+echo '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["seccomp"],"action":"SCMP_ACT_ERRNO"}]}' > $SCD/deny-seccomp.json
+echo '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["seccomp"],"action":"SCMP_ACT_KILL_PROCESS"}]}' > $SCD/kill-seccomp.json
+t seccomp-profile-denying-seccomp-runs "hi" $D run --rm --security-opt seccomp=$SCD/deny-seccomp.json alpine echo hi
+t seccomp-profile-killing-seccomp-runs "hi" $D run --rm --security-opt seccomp=$SCD/kill-seccomp.json alpine echo hi
+# Two conditional rules for one call: libseccomp tests the higher argument
+# index first whatever the profile order (checked on Docker 29.8.2), so the
+# type rule on arg1 (95) beats the domain rule on arg0 (13) for AF_INET6 DGRAM.
+echo '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["socket"],"action":"SCMP_ACT_ERRNO","errnoRet":95,"args":[{"index":1,"value":15,"valueTwo":2,"op":"SCMP_CMP_MASKED_EQ"}]},{"names":["socket"],"action":"SCMP_ACT_ERRNO","errnoRet":13,"args":[{"index":0,"value":10,"op":"SCMP_CMP_EQ"}]}]}' > $SCD/overlap.json
+t seccomp-overlapping-rules-higher-index-first "v6dgram-errno95 v6stream-errno13 v4dgram-errno95" $D run --rm --security-opt seccomp=$SCD/overlap.json python:3.13-alpine python -c '
+import socket
+def tr(f,t):
+    try: socket.socket(f, t); return "ok"
+    except OSError as e: return "errno%d" % e.errno
+print("v6dgram-"+tr(socket.AF_INET6, socket.SOCK_DGRAM), "v6stream-"+tr(socket.AF_INET6, socket.SOCK_STREAM), "v4dgram-"+tr(socket.AF_INET, socket.SOCK_DGRAM))'
+# As runc orders it: with no-new-privileges the profile goes in just before
+# the program starts, after the user switch, so a profile that denies setuid
+# still lets --user work; without it the profile goes in first and the
+# switch fails.
+echo '{"defaultAction":"SCMP_ACT_ALLOW","syscalls":[{"names":["setuid","setgid","setgroups"],"action":"SCMP_ACT_ERRNO","errnoRet":1}]}' > $SCD/deny-setuid.json
+t seccomp-profile-late-under-no-new-privileges "uid=1000" $D run --rm --user 1000 --security-opt no-new-privileges --security-opt seccomp=$SCD/deny-setuid.json alpine id
+t seccomp-profile-early-without-no-new-privileges "not permitted" bash -c "$D run --rm --user 1000 --security-opt seccomp=$SCD/deny-setuid.json alpine id 2>&1; true"
+rm -rf $SCD
 t seccomp-threads "threads ok" $D run --rm python:3.13-alpine python -c 'import threading; t=threading.Thread(target=print,args=("threads ok",)); t.start(); t.join()'
 t stdin-200mb "200000000" bash -c "head -c 200000000 /dev/zero | $D run --rm -i alpine wc -c"
 t stdin-slow-reader "30000000" bash -c "head -c 30000000 /dev/zero | $D run --rm -i alpine sh -c 'sleep 2; wc -c'"

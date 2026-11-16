@@ -360,6 +360,16 @@ fn kernel_version() -> String {
 
 const GUEST_KERNEL: &str = "6.18-kiri";
 
+/// The release of the kernel containers run on, when the daemon can read it:
+/// the host's on Linux, nothing on macOS (the VM agent does not report one).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(super) fn kernel_release() -> Option<String> {
+    #[cfg(target_os = "linux")]
+    return linux_kernel_release();
+    #[cfg(not(target_os = "linux"))]
+    None
+}
+
 #[cfg(target_os = "linux")]
 fn linux_kernel_release() -> Option<String> {
     parse_release(&std::fs::read_to_string("/proc/sys/kernel/osrelease").ok()?)
@@ -425,7 +435,7 @@ fn info(engine: &Engine) -> Value {
         "CgroupVersion": "2",
         "DefaultRuntime": "kiri",
         "Runtimes": {"kiri": {"path": "kiri-init"}},
-        "SecurityOptions": ["name=cgroupns"],
+        "SecurityOptions": ["name=seccomp,profile=builtin", "name=cgroupns"],
         // Not in Docker's /info (the ping's Builder-Version header is), but
         // tools print it: the classic builder API, served by builder.rs.
         "BuilderVersion": "1",
@@ -1401,7 +1411,7 @@ fn strings(v: &Value) -> Option<Vec<String>> {
 
 /// cgroup limits from a HostConfig (create) or an update body, on top of `base`.
 /// Capability names as Docker writes them (`NET_ADMIN`, `CAP_NET_ADMIN`, `ALL`).
-const CAPS: [&str; 41] = [
+pub(super) const CAPS: [&str; 41] = [
     "CHOWN", "DAC_OVERRIDE", "DAC_READ_SEARCH", "FOWNER", "FSETID", "KILL", "SETGID", "SETUID", "SETPCAP", "LINUX_IMMUTABLE",
     "NET_BIND_SERVICE", "NET_BROADCAST", "NET_ADMIN", "NET_RAW", "IPC_LOCK", "IPC_OWNER", "SYS_MODULE", "SYS_RAWIO", "SYS_CHROOT",
     "SYS_PTRACE", "SYS_PACCT", "SYS_ADMIN", "SYS_BOOT", "SYS_NICE", "SYS_RESOURCE", "SYS_TIME", "SYS_TTY_CONFIG", "MKNOD", "LEASE",
@@ -1412,6 +1422,21 @@ const CAPS: [&str; 41] = [
 /// Docker's default set: what a container keeps without `--cap-add`.
 const DEFAULT_CAPS: [&str; 14] =
     ["CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "SETGID", "SETUID", "SETPCAP", "NET_BIND_SERVICE", "NET_RAW", "SYS_CHROOT", "MKNOD", "AUDIT_WRITE", "SETFCAP"];
+
+/// The capabilities a container keeps, one bit each: `caps` as stored (0 is
+/// Docker's default set).
+pub(super) fn effective_caps(caps: u64) -> u64 {
+    if caps != 0 {
+        return caps;
+    }
+    DEFAULT_CAPS.iter().filter_map(|d| CAPS.iter().position(|c| c == d)).fold(0, |m, i| m | 1u64 << i)
+}
+
+/// The capabilities a profile's `includes`/`excludes` see: all of them for a
+/// privileged container, as in moby.
+pub(super) fn profile_caps(caps: u64, privileged: bool) -> u64 {
+    if privileged { (1u64 << CAPS.len()) - 1 } else { effective_caps(caps) }
+}
 
 /// `--cap-add`/`--cap-drop` as a mask; 0 when they change nothing.
 fn caps_from(host: &Value) -> Result<u64, Error> {
@@ -1471,6 +1496,11 @@ pub(super) fn create(req: &Request, engine: &Engine) -> Result<Value, Error> {
         return Err(Error::BadRequest("no image specified".into()));
     }
     let host = &body["HostConfig"];
+    // A seccomp profile Kiri cannot apply fails the create, before anything
+    // (volumes) is made for it.
+    if let super::seccomp::Choice::Profile(json) = super::seccomp::choice(&strings(&host["SecurityOpt"]).unwrap_or_default()).map_err(Error::BadRequest)? {
+        super::seccomp::compile(json, profile_caps(caps_from(host)?, host["Privileged"].as_bool().unwrap_or(false))).map_err(Error::BadRequest)?;
+    }
     let network_mode = match host["NetworkMode"].as_str().unwrap_or("default") {
         "" | "default" => "bridge".to_owned(),
         m => m.to_owned(),
