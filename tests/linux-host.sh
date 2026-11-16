@@ -118,6 +118,9 @@ t exit-126-exec "126" "docker run -d --name x126 alpine sleep 60 >/dev/null; doc
 t clean-stop-setup "ok" "docker run -d --name cs alpine sleep 1d >/dev/null && echo ok"
 $D restart -t 20 "$N" >/dev/null; up
 if $D logs "$N" 2>&1 | grep -q 'stopped unexpectedly'; then FAIL=$((FAIL + 1)); echo "  FAIL clean-stop-not-error: $($D logs "$N" 2>&1 | grep 'stopped unexpectedly' | head -1)"; else PASS=$((PASS + 1)); fi
+# After a systemd-like restart, the host cgroup may already have gone;
+# restoring a stopped container must not hit an old overlay mount.
+t start-after-service-restart "true" "docker start cs >/dev/null && docker inspect -f '{{.State.Running}}' cs"
 t clean-stop-cleanup "cs" "docker rm -f cs"
 # The VM (here the agent, kiri-init under the daemon) dies with nobody asking
 # (#50): `always` and `unless-stopped` come back by themselves, with no
