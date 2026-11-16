@@ -1,9 +1,11 @@
 # Caskel Nix packaging (Linux-first)
 
 This directory packages the Rust engine and its agent as **Caskel** on
-`x86_64-linux`, using a pinned Nix flake. It does not call upstream's
-Docker-based `cargo xtask linux`, change Docker, start a privileged daemon,
-or write system configuration during the build.
+`x86_64-linux`, using a pinned Nix flake. It does not use Docker to
+build the engine, change Docker's default socket, start a privileged daemon,
+or write system configuration during the build. The Linux-only
+`cargo xtask linux` now delegates to `nix build .#caskel` rather than
+using upstream's Docker-based cross-platform build pipeline.
 
 ## Build
 
@@ -30,8 +32,11 @@ the original Cargo package `kiri`; `kiri-init` remains the internal
 runtime agent to ease integration of upstream changes.
 
 The optional Linux GUI is not packaged in this minimal Nix build.
-Privileged container/integration tests are not run inside the Nix sandbox;
-the CI gate covers reproducible compilation, binary presence and the unit.
+Privileged runtime tests cannot run in the Nix build sandbox. GitHub Actions
+checks the reproducible package and unit file, runs unprivileged Rust unit
+tests, then runs privileged agent unit tests and isolated container/security
+smoke tests on a disposable Linux CI VM. This does not replace local
+acceptance testing of real networking, Compose or production service data.
 
 ## Installation and opt-in service
 
