@@ -1,4 +1,7 @@
 /target
+# Nix build output symlinks (nix build --out-link result[-name]).
+/result
+/result-*
 # Raw benchmark output: kept outside this repository.
 /bench/results/
 /guest/out/
