@@ -104,5 +104,33 @@ jobs:
           sudo "$BIN" start caskel-ci-restart
           sudo "$BIN" inspect -f '{{.State.Running}}' caskel-ci-restart | grep -qx true
           sudo "$BIN" rm -f caskel-ci-restart
+          # Discovery must query the real Docker source, even while the
+          # separate Caskel daemon is running, and must not mutate it.
+          docker_all_before=$(docker ps -aq | sort)
+          docker_images_before=$(docker image ls -q | sort)
+          sudo "$BIN" migrate docker --list > "$RUNNER_TEMP/docker-inventory.txt"
+          sudo "$BIN" migrate docker --list --json > "$RUNNER_TEMP/docker-inventory.json"
+          python3 - "$RUNNER_TEMP/docker-inventory.json" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              report = json.load(f)
+          assert isinstance(report["containers"], list)
+          assert isinstance(report["images"], list)
+          assert isinstance(report["volumes"], list)
+          assert isinstance(report["networks"], list)
+          assert isinstance(report["compose_projects"], list)
+          assert report["docker_version"], report
+          PY
+          if sudo "$BIN" migrate docker --list --socket /run/caskel/docker.sock >/dev/null 2>&1; then
+            echo 'refused to reject the destination Caskel socket' >&2
+            exit 1
+          fi
+          if sudo "$BIN" migrate docker --dry-run >/dev/null 2>&1; then
+            echo 'unsupported migration dry-run was accepted' >&2
+            exit 1
+          fi
+          test "$docker_all_before" = "$(docker ps -aq | sort)"
+          test "$docker_images_before" = "$(docker image ls -q | sort)"
           after=$(docker ps -q | sort)
           test "$before" = "$after"
