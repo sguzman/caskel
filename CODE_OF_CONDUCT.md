@@ -37,7 +37,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at abuse@runkiri.com. All complaints will be reviewed and investigated promptly and fairly.
+Report community conduct concerns to the **Caskel repository maintainers** through an available private GitHub contact channel. The upstream address `abuse@runkiri.com` does not belong to Caskel and must not be used for this project. If no private channel is offered, ask the maintainer for a private contact method without publishing personal details or allegations. Reports are reviewed by Caskel maintainers, not the upstream Kiri team.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

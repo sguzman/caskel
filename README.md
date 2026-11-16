@@ -68,9 +68,7 @@ The [verified development roadmap](docs/roadmap.md) tracks full-lifecycle milest
 4. Selective upstream synchronization and tracked security updates.
 5. Gradual, recoverable migration of self-hosted workloads.
 
-**The native Docker migration CLI is planned, not yet implemented.**
-Upstream's OrbStack/Docker Desktop importer does not currently support
-migrating a regular Linux Docker Engine directly.
+**The native, read-only Docker inventory is implemented** as `caskel migrate docker --list [--json]`; the migration dry-run and cutover are **not** implemented. Caskel does not yet move services or storage.
 
 ## Origins and license
 
@@ -80,9 +78,9 @@ logo are excluded from that license; Caskel does not claim or use them as its
 own branding. This project is not endorsed by upstream.
 
 See [UPSTREAM.md](UPSTREAM.md) for our branching/integration process,
-[LICENSE](LICENSE) and [NOTICE](NOTICE). Existing documentation under
-`docs/` may still describe upstream Kiri until adapted, including platform
-features not yet tested in this fork.
+[LICENSE](LICENSE) and [NOTICE](NOTICE). Historical release notes under `docs/releases/` document upstream Kiri and
+must not be read as Caskel release announcements. Current support is covered
+by `docs/features.md` and `RELEASES.md`.
 
 ## Legacy Kiri Cloud separation
 
