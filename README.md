@@ -1,5 +1,7 @@
 # Caskel
 
+![Caskel original logo](brand/caskel-wordmark.svg)
+
 **Linux-first container runtime, written in Rust.**
 
 Caskel is a Linux-focused, independently maintained fork of
