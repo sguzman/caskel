@@ -129,9 +129,9 @@ pub fn digest_hex(digest: &str) -> io::Result<&str> {
 impl Store {
     /// The per-user data directory: `~/Library/Application Support/Kiri` on
     /// macOS, `$XDG_DATA_HOME/caskel` (or `~/.local/share/caskel`) on Linux; other platforms keep kiri.
-    /// `KIRI_DATA_DIR` overrides both.
+    /// `CASKEL_DATA_DIR` overrides both, with legacy `KIRI_DATA_DIR` fallback.
     pub fn default_root() -> io::Result<PathBuf> {
-        if let Some(dir) = std::env::var_os("KIRI_DATA_DIR") {
+        if let Some(dir) = std::env::var_os("CASKEL_DATA_DIR").or_else(|| std::env::var_os("KIRI_DATA_DIR")) {
             return Ok(PathBuf::from(dir));
         }
         let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;

@@ -53,7 +53,7 @@ pub fn state_dir() -> io::Result<PathBuf> {
 
 /// `~/.kiri/run/docker.sock`, beside OrbStack's `~/.orbstack/run/docker.sock`.
 pub fn socket_path() -> io::Result<PathBuf> {
-    if let Some(s) = std::env::var_os("KIRI_SOCKET") {
+    if let Some(s) = std::env::var_os("CASKEL_SOCKET").or_else(|| std::env::var_os("KIRI_SOCKET")) {
         return Ok(PathBuf::from(s));
     }
     let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
@@ -112,7 +112,7 @@ pub fn run(_args: &[String]) -> io::Result<()> {
     std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))?;
     // On a Linux host the daemon runs as root; `KIRI_SOCKET_GROUP=kiri`
     // lets that group's users in, as the docker group does for dockerd.
-    let access_group = std::env::var_os("KIRI_SOCKET_GROUP");
+    let access_group = std::env::var_os("CASKEL_SOCKET_GROUP").or_else(|| std::env::var_os("KIRI_SOCKET_GROUP"));
     if let Some(group) = &access_group {
         socket_group(&socket, group)?;
     }

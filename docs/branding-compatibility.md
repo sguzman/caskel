@@ -29,7 +29,7 @@ The following internal interfaces must not be changed casually:
 
 | Surface | Why it remains | Exit condition |
 | --- | --- | --- |
-| `KIRI_SOCKET`, `KIRI_DATA_DIR` | Existing agent/service override and tests | Introduce `CASKEL_*` aliases, test precedence and migration without altering live profiles |
+| `KIRI_SOCKET`, `KIRI_DATA_DIR`, `KIRI_AGENT`, `KIRI_SOCKET_GROUP`, port variables | Existing agent/service overrides and tests | Canonical `CASKEL_*` environment options now win, original options remain as compatible fallbacks; deployed unit migration requires separate opt-in |
 | `/kiri/*` Engine extension endpoints | Internal GUI/daemon API and old clients | Versioned alias+client update with regression tests |
 | `KiriVersion` in Engine API | Legacy clients and daemon version checks | Preserve alongside `CaskelVersion` until callers migrated |
 | `/run/kiri`, `~/.kiri` legacy paths | Earlier Kiri rollback and some agent internals | Verify producers, old profile and storage migration before retiring |

@@ -286,10 +286,13 @@ fn unexpected(wanted: &str, got: &Msg<'_>) -> io::Error {
     io::Error::other(format!("expected {wanted}, got {got:?}"))
 }
 
-/// The agent on Linux: `KIRI_AGENT`, else `kiri-init` beside `caskel`.
+/// Prefer Caskel's configured native agent. The KIRI_AGENT override and
+/// old kiri-init filename are retained for installed compatibility profiles.
 fn agent_binary() -> PathBuf {
-    if let Some(p) = std::env::var_os("KIRI_AGENT") {
+    if let Some(p) = std::env::var_os("CASKEL_AGENT").or_else(|| std::env::var_os("KIRI_AGENT")) {
         return PathBuf::from(p);
     }
+    let bin = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("caskel-init")));
+    if let Some(bin) = bin.filter(|p| p.is_file()) { return bin; }
     std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("kiri-init"))).unwrap_or_else(|| PathBuf::from("kiri-init"))
 }
