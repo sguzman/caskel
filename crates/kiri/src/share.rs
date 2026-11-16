@@ -86,6 +86,11 @@ fn config_path() -> io::Result<PathBuf> {
         return Ok(PathBuf::from(p));
     }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
+    // On Linux, Caskel never silently reuses Kiri Cloud tokens from ~/.kiri.
+    // KIRI_SHARE_CONFIG remains an explicit compatibility override.
+    #[cfg(target_os = "linux")]
+    return Ok(home.join(".caskel/share.json"));
+    #[cfg(not(target_os = "linux"))]
     Ok(home.join(".kiri/share.json"))
 }
 
@@ -1736,15 +1741,18 @@ fn read_loop(sess: &Arc<Session>, reader: &mut TcpStream, welcomed: &mut Option<
 // ---------------------------------------------------------------- the CLI
 
 const USAGE: &str = "\
-usage: kiri share PORT | HOST:PORT | CONTAINER [NAME | --name NAME] [--no-reserve] [--json]
-       kiri share reserve NAME     ask to keep NAME.runkiri.cloud for yourself
-       kiri share names            your reserved names, and requests waiting for review
-       kiri share release NAME     give a reserved name up, or withdraw a request
-       kiri share login [--dev LOGIN]
-       kiri share logout
-       kiri share status [--json]
+usage: caskel share PORT | HOST:PORT | CONTAINER [NAME | --name NAME] [--no-reserve] [--json]
+       caskel share reserve NAME   request NAME.runkiri.cloud from Kiri Cloud
+       caskel share names          legacy Kiri Cloud reserved names
+       caskel share release NAME   release a legacy reserved name
+       caskel share login [--dev LOGIN]
+       caskel share logout
+       caskel share status [--json]
 
-`kiri 3000` shares port 3000 at a random address; `kiri 3000 myapp` (or
+This optional Kiri Cloud service is not operated by Caskel and connections
+to its inherited endpoint require CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1.
+
+`caskel 3000` shares port 3000 at a random address; `caskel 3000 myapp` (or
 --name myapp) at myapp.runkiri.cloud once it's reserved. Kiri Cloud checks each name before it's
 yours, usually within a day, and emails you; until then shares get a random address. If the name is free
 and your plan has a slot left, it's asked for first; --no-reserve uses it only as the start of a random
@@ -1766,9 +1774,9 @@ impl Paint {
         if self.on { format!("\x1b[{code}m{s}\x1b[0m") } else { s.to_owned() }
     }
 
-    /// Kiri's mustard, #E0B420.
+    /// Caskel green, #54D7AA.
     fn accent(&self, s: &str) -> String {
-        self.wrap("38;2;224;180;32", s)
+        self.wrap("38;2;84;215;170", s)
     }
     fn bold(&self, s: &str) -> String {
         self.wrap("1", s)
@@ -1842,7 +1850,7 @@ fn printer(target: String) -> impl Fn(Event) + Send + Sync + 'static {
         Event::Connecting { server } => {
             if !header_done.swap(true, Ordering::Relaxed) {
                 println!();
-                println!("  {}  {}", p.accent(&p.bold("◆ Kiri Share")), p.dim(&format!("connecting to {server}…")));
+                println!("  {}  {}", p.accent(&p.bold("◆ Caskel · legacy Kiri Share")), p.dim(&format!("connecting to {server}…")));
             }
         }
         Event::Live { url, rate, remaining, warning, domains } => {
@@ -2104,7 +2112,7 @@ fn status_cli(json: bool) -> io::Result<()> {
     let rate = v["limits"]["rate"].as_u64().unwrap_or(0) as u32;
     let cap = v["usage"]["cap"].as_u64().unwrap_or(u64::MAX);
     let used = v["usage"]["used"].as_u64().unwrap_or(0);
-    println!("  {}  {}", p.accent(&p.bold("◆ Kiri Share")), p.dim(&srv.host));
+    println!("  {}  {}", p.accent(&p.bold("◆ Caskel · legacy Kiri Share")), p.dim(&srv.host));
     println!("     {:<10}{}", "account", p.bold(v["login"].as_str().unwrap_or("?")));
     println!("     {:<10}{}", "trust", v["trust"].as_i64().unwrap_or(0));
     match v["limits"]["tunnels"].as_u64() {
