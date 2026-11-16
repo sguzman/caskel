@@ -213,7 +213,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
     let socket = source_socket(&socket)?;
     let inventory = discover(&socket)?;
     if json_output {
-        println!("{}", serde_json::to_string_pretty(&inventory)?);
+        println!("{}", serde_json::to_string_pretty(&inventory).map_err(io::Error::other)?);
     } else {
         println!("Docker Engine inventory (READ ONLY): {}", socket.display());
         println!("Version: {}", inventory["docker_version"].as_str().unwrap_or("?"));
