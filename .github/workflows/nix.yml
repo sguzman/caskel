@@ -53,6 +53,12 @@ jobs:
             --skip linux::layers::tests::retain_deletes_unused_and_broken_layers \
             --skip linux::layers::tests::symlink_parent_cannot_escape_layer \
             --skip linux::layers::tests::whiteout_through_symlink_stays_in_layer
+      # Run the complete agent suite as root on a disposable CI VM.
+      # This covers ownership-preserving tar extraction and privileged DNS
+      # bind tests deliberately excluded from the unprivileged unit step.
+      - name: Linux agent privileged unit tests (ephemeral CI VM)
+        run: |
+          sudo "$(command -v nix)" develop --command cargo test --locked -p kiri-init --bin kiri-init -- --test-threads=1
       # This runs only on GitHub's disposable VM. Never exercise privileged
       # container/runtime tests against a user's production Docker host.
       - name: Linux runtime smoke (ephemeral CI VM)
