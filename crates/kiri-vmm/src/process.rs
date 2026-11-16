@@ -1,4 +1,4 @@
-//! Linux: no VM. The guest agent (`kiri-init`) runs as a root process on the
+//! Linux: no VM. The host agent (`kiri-init`) runs as a root process on the
 //! host's kernel, and the vsock ports become unix sockets in a private
 //! directory: the agent listens on `g<port>.sock`, the daemon on
 //! `h<port>.sock`. Everything above this module is unchanged.
@@ -13,22 +13,13 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-/// The same fields as on macOS, so callers build one `Config`. On Linux,
-/// `initrd` names the agent binary (`kiri-init`); kernel, disk, shares,
-/// memory and network fields do not apply: the host provides them.
+/// How to launch the Linux host agent. No guest kernel, virtual disks,
+/// Rosetta support or VM memory/CPU configuration is involved.
 #[derive(Debug)]
 pub struct Config {
-    pub cpus: usize,
-    pub memory_mib: u64,
-    pub kernel: PathBuf,
-    pub initrd: PathBuf,
-    pub cmdline: String,
+    pub agent: PathBuf,
     pub console: Option<OwnedFd>,
     pub agent_port: u32,
-    pub disk: Option<PathBuf>,
-    pub share: Option<(PathBuf, String)>,
-    pub rosetta_tag: Option<String>,
-    pub nat_mac: Option<String>,
 }
 
 #[derive(Debug)]
@@ -91,14 +82,14 @@ impl Vm {
                 let _ = tx.send(Event::GuestConnected(OwnedFd::from(s)));
             }
         })?;
-        let mut cmd = Command::new(&cfg.initrd);
+        let mut cmd = Command::new(&cfg.agent);
         cmd.env("KIRI_AGENT_DIR", &dir).env_remove("KIRI_SOCKET");
         if let Some(fd) = cfg.console {
             cmd.stderr(std::process::Stdio::from(fd.try_clone()?)).stdout(std::process::Stdio::from(fd));
         } else {
             cmd.stdout(std::process::Stdio::null());
         }
-        let child = Arc::new(Mutex::new(cmd.spawn().map_err(|e| io::Error::new(e.kind(), format!("starting {}: {e}", cfg.initrd.display())))?));
+        let child = Arc::new(Mutex::new(cmd.spawn().map_err(|e| io::Error::new(e.kind(), format!("starting {}: {e}", cfg.agent.display())))?));
         let (waiter, tx) = (child.clone(), sender);
         std::thread::Builder::new().name("kiri-agent-wait".into()).spawn(move || loop {
             std::thread::sleep(Duration::from_millis(100));
