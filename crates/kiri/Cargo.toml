@@ -1,15 +1,15 @@
 [package]
-name = "kiri"
-description = "Tiny, fast container runtime"
+name = "caskel"
+description = "Caskel Linux-native Docker-compatible container engine"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [dependencies]
-kiri-image = { path = "../kiri-image" }
-kiri-proto = { path = "../kiri-proto" }
-kiri-share-proto = { path = "../kiri-share-proto" }
+caskel-image = { path = "../kiri-image" }
+caskel-proto = { path = "../kiri-proto" }
+caskel-share-proto = { path = "../kiri-share-proto" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
@@ -27,7 +27,7 @@ rcgen = { version = "0.14", default-features = false, features = ["ring", "pem",
 # separate build that links the system's GTK 3 and WebKitGTK 4.1.
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
-kiri-vmm = { path = "../kiri-vmm" }
+caskel-agent-transport = { path = "../kiri-vmm" }
 gtk = { version = "0.18", optional = true }
 webkit2gtk = { version = "2.0", optional = true, features = ["v2_40"] }
 javascriptcore-rs = { version = "1", optional = true }

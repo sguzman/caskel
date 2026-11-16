@@ -18,8 +18,8 @@ rustPlatform.buildRustPackage {
   # Build the exact Rust packages inside Nix's sandbox. The Linux-only
   # cargo xtask wrapper invokes this derivation, not the other way around.
   cargoBuildFlags = [
-    "-p" "kiri"
-    "-p" "kiri-init"
+    "-p" "caskel"
+    "-p" "caskel-init"
   ];
 
   # Runtime/integration tests require privileged Linux namespaces, mounts and
@@ -27,9 +27,11 @@ rustPlatform.buildRustPackage {
   doCheck = false;
 
   postInstall = ''
-    mv "$out/bin/kiri" "$out/bin/caskel"
     test -x "$out/bin/caskel"
-    test -x "$out/bin/kiri-init"
+    test -x "$out/bin/caskel-init"
+    # Old agent launcher names remain as a compatibility link for persisted
+    # runtime integration; new installs expose caskel-init canonically.
+    ln -s caskel-init "$out/bin/kiri-init"
     # Opt-in service template; not registered or activated by this build.
     install -Dm444 ${./systemd/caskel.service} "$out/lib/systemd/system/caskel.service"
     test -f "$out/lib/systemd/system/caskel.service"

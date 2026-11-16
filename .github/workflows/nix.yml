@@ -34,7 +34,8 @@ jobs:
           nix flake check --show-trace
           nix build .#caskel --show-trace
           test -x result/bin/caskel
-          test -x result/bin/kiri-init
+          test -x result/bin/caskel-init
+          test -L result/bin/kiri-init
           test -f result/lib/systemd/system/caskel.service
           grep -Fq 'ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon' result/lib/systemd/system/caskel.service
           grep -Fq 'KIRI_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
@@ -49,7 +50,7 @@ jobs:
           ! grep -Fq 'name = "kiri-win"' Cargo.lock
           ! grep -Fq 'name = "objc2"' Cargo.lock
           nix develop --command cargo metadata --locked --no-deps --format-version 1 > "$RUNNER_TEMP/caskel-cargo-metadata.json"
-          grep -Fq '"name":"kiri"' "$RUNNER_TEMP/caskel-cargo-metadata.json"
+          grep -Fq '"name":"caskel"' "$RUNNER_TEMP/caskel-cargo-metadata.json"
       - name: Check Linux-only xtask wrapper
         run: nix develop --command cargo check --locked -p xtask
       - name: Check Linux-only CLI usage
@@ -71,11 +72,11 @@ jobs:
             exit 1
           fi
       - name: Linux agent transport unit tests
-        run: nix develop --command cargo test --locked -p kiri-vmm
+        run: nix develop --command cargo test --locked -p caskel-agent-transport
       - name: Linux Rust unit tests (unprivileged)
         run: |
-          nix develop --command cargo test --locked -p kiri -p kiri-proto
-          nix develop --command cargo test --locked -p kiri-init --bin kiri-init -- \
+          nix develop --command cargo test --locked -p caskel -p caskel-proto
+          nix develop --command cargo test --locked -p caskel-init --bin caskel-init -- \
             --skip linux::dns::tests::every_forwarded_query_has_its_own_port_and_its_answer_goes_back \
             --skip linux::layers::tests::expansion_is_capped \
             --skip linux::layers::tests::layer_without_marker_is_replaced \
@@ -87,7 +88,7 @@ jobs:
       # bind tests deliberately excluded from the unprivileged unit step.
       - name: Linux agent privileged unit tests (ephemeral CI VM)
         run: |
-          sudo "$(command -v nix)" develop --command cargo test --locked -p kiri-init --bin kiri-init -- --test-threads=1
+          sudo "$(command -v nix)" develop --command cargo test --locked -p caskel-init --bin caskel-init -- --test-threads=1
       # This runs only on GitHub's disposable VM. Never exercise privileged
       # container/runtime tests against a user's production Docker host.
       - name: Linux runtime smoke (ephemeral CI VM)
