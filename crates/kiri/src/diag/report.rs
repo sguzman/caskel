@@ -356,7 +356,7 @@ fn crash_name(name: &str) -> Option<(u64, Part)> {
 /// `state` is `~/.kiri`.
 pub fn assemble(home: &Path, state: &Path, facts: &Facts, redactor: &Redactor) -> String {
     let mut s = String::new();
-    let _ = writeln!(s, "Kiri diagnostics report");
+    let _ = writeln!(s, "Caskel diagnostics report");
     let _ = writeln!(s, "Created:  {}", time::rfc3339(facts.created));
     let _ = writeln!(s, "App:      {} {} ({}), made by the {}", crate::flavor::APP, env!("CARGO_PKG_VERSION"), crate::flavor::CONTEXT, super::part().name());
     let _ = writeln!(s, "System:   {}", super::system().line());
@@ -414,7 +414,7 @@ pub fn assemble(home: &Path, state: &Path, facts: &Facts, redactor: &Redactor) -
     redactor.apply(&s)
 }
 
-/// This Mac's report, as `kiri diag report` and the window make it; the
+/// Caskel diagnostics, as `caskel diag report` and the window make it; the
 /// window may add the container list.
 pub fn report_text(containers: bool) -> io::Result<String> {
     let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
@@ -423,13 +423,13 @@ pub fn report_text(containers: bool) -> io::Result<String> {
     Ok(assemble(&home, &state, &facts, &Redactor::for_user()))
 }
 
-/// `~/Desktop/kiri-report-20261028-104107.txt` (the home folder when there
+/// `~/Desktop/caskel-report-20261028-104107.txt` (the home folder when there
 /// is no Desktop).
 fn default_out() -> io::Result<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
     let desktop = home.join("Desktop");
     let stamp: String = local(&super::now()).chars().filter(|c| c.is_ascii_digit() || *c == ' ').take(15).collect::<String>().replace(' ', "-");
-    Ok(if desktop.is_dir() { desktop } else { home }.join(format!("kiri-report-{stamp}.txt")))
+    Ok(if desktop.is_dir() { desktop } else { home }.join(format!("caskel-report-{stamp}.txt")))
 }
 
 /// Writes the report, readable only by this user. Returns where.
@@ -885,7 +885,7 @@ mod tests {
         let facts = Facts { engine: "not running".into(), crash_reports: false, created: UNIX_EPOCH + Duration::from_secs(1_792_800_000), containers: Some("web  nginx:alpine  Up 2 hours\n".into()) };
         let text = assemble(&home, &state, &facts, &Redactor::new(Some(h.clone()), Vec::new()));
 
-        assert!(text.starts_with("Kiri diagnostics report\nCreated:  2026-10-24T00:00:00"), "{text}");
+        assert!(text.starts_with("Caskel diagnostics report\nCreated:  2026-10-24T00:00:00"), "{text}");
         assert!(text.contains("Engine:   not running") && text.contains("Crash reports: not sent automatically"));
         assert!(text.contains("==== Log: engine (~/.kiri/logs/daemon.log) ===="));
         // The last 300 of 400 lines.
