@@ -43,6 +43,8 @@ jobs:
       # Compile *all* test modules; run the unprivileged suite on this hosted
       # runner. Ownership-preserving layer extraction and DNS bind tests need
       # the separate privileged Linux acceptance environment.
+      - name: Check Linux-only xtask wrapper
+        run: nix develop --command cargo check --locked -p xtask
       - name: Linux Rust unit tests (unprivileged)
         run: |
           nix develop --command cargo test --locked -p kiri -p kiri-proto
