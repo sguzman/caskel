@@ -17,7 +17,7 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | C1 | Retire Windows/WSL and Mac release tooling, unsupported CLI/Apple VM backend | 4 | 4 | Verified — PRs #9 and #10 |
 | C2 | Prune Windows workspace, Apple dependencies, stale platform translations while retaining Linux runtime | 4 | 4 | Verified — PR #11 |
 | C3a | Remove unreachable Mac guest boot code and narrow Linux agent launch config | 2 | 2 | Verified — PR #12; all four checks passed |
-| C3b | Retire AppKit UI/backend and Mac-only UI strings, preserving Linux GTK path | 2 | 0 | Active — PR #13; score only after complete CI |
+| C3b | Retire AppKit UI/backend and Mac-only UI strings, preserving Linux GTK path | 2 | 2 | Verified — PR #13; four workflows passed (optional GTK build still pending) |
 | C4 | Audit and retire or adapt remaining unused guest kernels, platform assets and Linux packaging paths | 4 | 0 | Pending — validate dependencies before deletion |
 | C5 | Rebrand internal agent/crate and runtime/public names with an explicit compatibility and rollback plan | 4 | 0 | Pending — preserve `KIRI_*` aliases until assessed |
 | D1 | Accurate Linux-first README and documented upstream-cherry-pick policy | 2 | 2 | Verified — PR #5, `UPSTREAM.md` |
@@ -32,15 +32,14 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | G1 | Multi-service Linux acceptance matrix for security, Compose, DNS/ports, data retention and restart/restore | 5 | 0 | Pending |
 | G2 | Pinned release and staged real-host promotion with repeatable rollback evidence | 5 | 0 | Pending — never auto-redeploy production |
 
-**Verified score at PR #12:** 37 / 100. **Before this continuation (PR #11):** 35 / 100. PR #13 will add 2 only if its CI completes successfully and its code is merged. Host GUI compilation/QA is not implied by a passing HTML page test.
+**Verified score at PR #13:** 39 / 100. **Before this continuation (PR #11):** 35 / 100. PR #12 contributed +2 points and PR #13 contributed +2 points after all four workflows passed and both changes were merged. Host GUI compilation/QA is not implied by passing HTML page tests.
 
 ## Current priorities
 
-1. Finish PR #13 and establish its exact test evidence; do not silently count pending runs.
-2. Complete source-led platform artifact/kernel audit; keep `kiri-vmm/src/process.rs`, which is the Linux agent transport, regardless of its historic name.
-3. Map all old/new config, socket, storage, package and protocol consumers before internal rebranding. Avoid breaking installed Caskel or the old Kiri rollback copy.
-4. Build read-only Docker discovery before implementing any write path. Then implement dry-run planning and reversible cutovers.
-5. Expand disposable-host acceptance to realistic networking and persistent volumes before migration of actual services.
+1. Complete source-led platform artifact/kernel audit; keep `kiri-vmm/src/process.rs`, which is the Linux agent transport, regardless of its historic name.
+2. Map all old/new config, socket, storage, package and protocol consumers before internal rebranding. Avoid breaking installed Caskel or the old Kiri rollback copy.
+3. Build read-only Docker discovery before implementing any write path. Then implement dry-run planning and reversible cutovers.
+4. Expand disposable-host acceptance to realistic networking and persistent volumes before migration of actual services.
 
 ## Non-negotiable safety and completion gates
 
