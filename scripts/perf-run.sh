@@ -12,6 +12,8 @@
 set -eu
 BASE_BIN=$(cd "$1" && pwd); HEAD_BIN=$(cd "$2" && pwd); WORK=$3; RUNS=${4:-400}
 HERE=$(cd "$(dirname "$0")" && pwd)
+# The workflow passes base/main's perf.py so a PR cannot relax its own limits.
+PERF_SCRIPT=${PERF_SCRIPT:-$HERE/perf.py}
 SUDO=; [ "$(id -u)" = 0 ] || SUDO=sudo
 mkdir -p "$WORK"; WORK=$(cd "$WORK" && pwd)
 
@@ -24,7 +26,11 @@ stop
 for e in base head; do
   bin=$BASE_BIN; [ $e = head ] && bin=$HEAD_BIN
   $SUDO rm -rf "$WORK/$e-run"; mkdir -p "$WORK/$e-run"
+  # Both upstream Kiri and Caskel honor these overrides; the benchmark
+  # compares engine performance, not their differently named default paths.
   docker run -d --name kiri-perf-$e --privileged --tmpfs /run \
+    -e KIRI_SOCKET=/root/.kiri/run/docker.sock \
+    -e KIRI_DATA_DIR=/root/.local/share/kiri \
     -v kiri-perf-$e-lib:/var/lib/kiri -v kiri-perf-$e-store:/root/.local/share/kiri \
     -v "$bin:/opt/kiri:ro" -v "$WORK/$e-run:/root/.kiri/run" \
     alpine:3.21 sh -c 'exec /opt/kiri/kiri daemon' >/dev/null
@@ -36,10 +42,10 @@ for e in base head; do
     sleep 0.5
   done
 done
-python3 "$HERE/perf.py" sizes --base "$BASE_BIN" --head "$HEAD_BIN" --out "$WORK/sizes.json"
-$SUDO python3 "$HERE/perf.py" bench --runs "$RUNS" --out "$WORK/results.json" \
+python3 "$PERF_SCRIPT" sizes --base "$BASE_BIN" --head "$HEAD_BIN" --out "$WORK/sizes.json"
+$SUDO python3 "$PERF_SCRIPT" bench --runs "$RUNS" --out "$WORK/results.json" \
   --base "$WORK/base-run/docker.sock:$(pid base)" --head "$WORK/head-run/docker.sock:$(pid head)"
 status=0
-python3 "$HERE/perf.py" report "$WORK/results.json" "$WORK/sizes.json" > "$WORK/report.md" || status=$?
+python3 "$PERF_SCRIPT" report "$WORK/results.json" "$WORK/sizes.json" > "$WORK/report.md" || status=$?
 cat "$WORK/report.md"
 exit $status

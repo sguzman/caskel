@@ -5,7 +5,7 @@
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "kiri";
+  pname = "caskel";
   # Upstream Cargo.toml intentionally uses 0.0.0 for checkout builds.
   version = "0.2.1-git";
 
@@ -27,18 +27,19 @@ rustPlatform.buildRustPackage {
   doCheck = false;
 
   postInstall = ''
-    test -x "$out/bin/kiri"
+    mv "$out/bin/kiri" "$out/bin/caskel"
+    test -x "$out/bin/caskel"
     test -x "$out/bin/kiri-init"
     # Opt-in service template; not registered or activated by this build.
-    install -Dm444 ${./systemd/kiri.service} "$out/lib/systemd/system/kiri.service"
-    test -f "$out/lib/systemd/system/kiri.service"
+    install -Dm444 ${./systemd/caskel.service} "$out/lib/systemd/system/caskel.service"
+    test -f "$out/lib/systemd/system/caskel.service"
   '';
 
   meta = with lib; {
-    description = "Rust-based container engine compatible with Docker's API";
-    homepage = "https://github.com/libracoder/kiri";
+    description = "Linux-first Rust container engine compatible with Docker's API";
+    homepage = "https://github.com/sguzman/caskel";
     license = licenses.asl20;
     platforms = [ "x86_64-linux" ];
-    mainProgram = "kiri";
+    mainProgram = "caskel";
   };
 }

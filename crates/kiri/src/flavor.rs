@@ -90,8 +90,14 @@ impl fmt::Display for Name {
 /// The app's name, as the window and Finder show it.
 pub const APP: Name = Name("Kiri", "Kiri Dev");
 /// Under HOME: the daemon's socket and state, the window's settings.
+#[cfg(target_os = "linux")]
+pub const STATE: Name = Name(".caskel", ".caskel-dev");
+#[cfg(not(target_os = "linux"))]
 pub const STATE: Name = Name(".kiri", ".kiri-dev");
 /// The docker context, and the kubectl one.
+#[cfg(target_os = "linux")]
+pub const CONTEXT: Name = Name("caskel", "caskel-dev");
+#[cfg(not(target_os = "linux"))]
 pub const CONTEXT: Name = Name("kiri", "kiri-dev");
 pub const AGENT: Name = Name("dev.kiri.daemon", "dev.kiri.daemon.dev");
 pub const APP_ID: Name = Name("dev.kiri.app", DEV_APP_ID);
@@ -112,7 +118,8 @@ mod tests {
     #[test]
     fn a_test_binary_is_not_dev() {
         assert!(!super::dev());
-        assert_eq!((super::STATE.get(), super::CONTEXT.to_string()), (".kiri", "kiri".to_owned()));
+        let (state, context) = if cfg!(target_os = "linux") { (".caskel", "caskel") } else { (".kiri", "kiri") };
+        assert_eq!((super::STATE.get(), super::CONTEXT.to_string()), (state, context.to_owned()));
     }
 
     #[test]

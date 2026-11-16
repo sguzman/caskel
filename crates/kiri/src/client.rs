@@ -16,7 +16,7 @@ pub fn socket() -> io::Result<PathBuf> {
     if let Some(s) = std::env::var_os("KIRI_SOCKET") {
         return Ok(PathBuf::from(s));
     }
-    // Linux: the engine is the `kiri` system service (contrib/linux/kiri.service).
+    // Linux: prefer the independent Caskel service, never the original Kiri socket.
     #[cfg(target_os = "linux")]
     if std::path::Path::new(SERVICE_SOCKET).exists() {
         return Ok(PathBuf::from(SERVICE_SOCKET));
@@ -25,9 +25,9 @@ pub fn socket() -> io::Result<PathBuf> {
     Ok(home.join(crate::flavor::STATE.get()).join("run/docker.sock"))
 }
 
-/// Where the Linux service's engine listens, for members of the `kiri` group.
+/// Where the Linux Caskel service listens (the configured docker group).
 #[cfg(target_os = "linux")]
-pub const SERVICE_SOCKET: &str = "/run/kiri/docker.sock";
+pub const SERVICE_SOCKET: &str = "/run/caskel/docker.sock";
 
 /// An answer: status and body.
 pub struct Response {

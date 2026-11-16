@@ -67,10 +67,11 @@ jobs:
         env:
           PR: ${{ github.event.pull_request.number }}
         run: |
-          scripts=base/scripts
-          [ -f "$scripts/perf.py" ] || scripts=head/scripts
+          # Use the change's launcher so Kiri and Caskel can select their
+          # test socket layout, but keep main's benchmark limits unchanged.
           set +e
-          sh "$scripts/perf-run.sh" "$RUNNER_TEMP/base-bin" "$RUNNER_TEMP/head-bin" "$RUNNER_TEMP/perf"
+          PERF_SCRIPT="$PWD/base/scripts/perf.py" sh head/scripts/perf-run.sh \
+            "$RUNNER_TEMP/base-bin" "$RUNNER_TEMP/head-bin" "$RUNNER_TEMP/perf"
           status=$?
           if [ -f "$RUNNER_TEMP/perf/report.md" ]; then
             [ -n "$PR" ] && echo "Pull request #$PR" >> "$GITHUB_STEP_SUMMARY"

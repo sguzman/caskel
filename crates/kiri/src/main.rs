@@ -76,26 +76,26 @@ mod tools;
 mod update;
 
 const USAGE: &str = "\
-usage: kiri COMMAND          docker's commands, on Kiri: kiri run, ps, exec,
+usage: caskel COMMAND          docker's commands, on Caskel: caskel run, ps, exec,
                              logs, stop, rm, images, pull, build, compose…
-       kiri daemon
-       kiri bridge [--socket PATH]   (WSL2: the end of kiri-win.exe)
-       kiri ui [--start] [--view containers|images|volumes|networks]
-       kiri setup [--use] [--no-agent] | kiri setup --uninstall
-       kiri build-with [docker|kiri]   which builder docker build uses
-       kiri update [--check]
-       kiri diag logs [-f] [--ui|--engine|--cli] [--errors] [-n N]
-       kiri diag report [--out PATH] [--send]   (a file to send us, tokens taken out)
-       kiri PORT [NAME]           share a local port on the internet (same as kiri share PORT)
-       kiri share PORT|CONTAINER [--name N] | share login | logout | status
-       kiri k8s start [--use] | stop | status | delete | set [--lan on|off] [--tls-san NAME,…] [--port N]
-       kiri usb [list] | attach DEVICE | detach DEVICE   USB devices for containers, beta (Mac: pass through to the VM)
-       kiri machine create NAME [--distro D] | list | shell NAME | stop | delete NAME
-       kiri import [orbstack | desktop-linux] [--list]
-       kiri bench [--runs N] [--image IMAGE] [--network none|bridge]
-       kiri boot [--console] [--pings N]
-       kiri raw run [--rm] [-e KEY=VALUE]... IMAGE [COMMAND...]   (its own guest, no daemon)
-       kiri raw pull <image> | raw images | raw rmi <image>...";
+       caskel daemon
+       caskel bridge [--socket PATH]   (WSL2: the end of kiri-win.exe)
+       caskel ui [--start] [--view containers|images|volumes|networks]
+       caskel setup [--use] [--no-agent] | caskel setup --uninstall
+       caskel build-with [docker|caskel]   which builder docker build uses
+       caskel update [--check]
+       caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [-n N]
+       caskel diag report [--out PATH] [--send]   (a file to send us, tokens taken out)
+       caskel PORT [NAME]           share a local port on the internet (same as caskel share PORT)
+       caskel share PORT|CONTAINER [--name N] | share login | logout | status
+       caskel k8s start [--use] | stop | status | delete | set [--lan on|off] [--tls-san NAME,…] [--port N]
+       caskel usb [list] | attach DEVICE | detach DEVICE   USB devices for containers, beta (Mac: pass through to the VM)
+       caskel machine create NAME [--distro D] | list | shell NAME | stop | delete NAME
+       caskel import [orbstack | desktop-linux] [--list]
+       caskel bench [--runs N] [--image IMAGE] [--network none|bridge]
+       caskel boot [--console] [--pings N]
+       caskel raw run [--rm] [-e KEY=VALUE]... IMAGE [COMMAND...]   (its own guest, no daemon)
+       caskel raw pull <image> | raw images | raw rmi <image>...";
 
 fn main() -> ExitCode {
     flavor::init();
@@ -194,7 +194,7 @@ fn main() -> ExitCode {
                 // Opened from Finder or the Dock there is none: "open" (#250).
                 diag::warn!("command failed", command = args.first().map_or(Some("open"), |a| (a.len() <= 20 && a.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')).then_some(a.as_str())).unwrap_or(""), error = e);
             }
-            eprintln!("kiri: {e}");
+            eprintln!("caskel: {e}");
             ExitCode::FAILURE
         }
     }

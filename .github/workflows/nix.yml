@@ -1,4 +1,4 @@
-name: Nix Linux build
+name: Caskel Nix Linux build
 
 on:
   push:
@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   build:
-    name: Build x86_64-linux package
+    name: Build x86_64-linux Caskel package
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +32,10 @@ jobs:
       - name: Evaluate and build
         run: |
           nix flake check --show-trace
-          nix build .#kiri --show-trace
-          test -x result/bin/kiri
+          nix build .#caskel --show-trace
+          test -x result/bin/caskel
           test -x result/bin/kiri-init
-          test -f result/lib/systemd/system/kiri.service
-          grep -Fq 'ExecStart=/nix/var/nix/profiles/kiri/bin/kiri daemon' result/lib/systemd/system/kiri.service
-          grep -Fq 'KIRI_SOCKET=/run/kiri/docker.sock' result/lib/systemd/system/kiri.service
+          test -f result/lib/systemd/system/caskel.service
+          grep -Fq 'ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon' result/lib/systemd/system/caskel.service
+          grep -Fq 'KIRI_SOCKET=/run/caskel/docker.sock' result/lib/systemd/system/caskel.service
+          grep -Fq 'KIRI_DATA_DIR=/var/lib/caskel-daemon/data' result/lib/systemd/system/caskel.service
