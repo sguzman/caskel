@@ -125,6 +125,22 @@ jobs:
           sudo "$BIN" start caskel-ci-restart
           sudo "$BIN" inspect -f '{{.State.Running}}' caskel-ci-restart | grep -qx true
           sudo "$BIN" rm -f caskel-ci-restart
+          # Storage acceptance runs against Caskel only on this disposable VM.
+          # Named-volume data must survive a daemon restart and a new container.
+          sudo "$BIN" run --rm --network none -v caskel-ci-storage:/state alpine:3.21 \
+            sh -c 'printf "persisted\n" > /state/marker'
+          sudo systemctl restart caskel.service
+          sudo systemctl is-active --quiet caskel.service
+          sudo "$BIN" run --rm --network none -v caskel-ci-storage:/state alpine:3.21 \
+            sh -c 'grep -qx persisted /state/marker'
+          sudo "$BIN" volume rm caskel-ci-storage
+          # An existing host file is visible in a read-only bind; writes fail.
+          bind_dir=$(mktemp -d)
+          printf 'readonly-ok\n' > "$bind_dir/marker"
+          sudo "$BIN" run --rm --network none -v "$bind_dir:/proof:ro" alpine:3.21 \
+            sh -c 'grep -qx readonly-ok /proof/marker && ! touch /proof/unexpected'
+          test ! -e "$bind_dir/unexpected"
+          rm -rf "$bind_dir"
           # Discovery must query the real Docker source, even while the
           # separate Caskel daemon is running, and must not mutate it.
           docker_all_before=$(docker ps -aq | sort)
