@@ -451,12 +451,12 @@ pub fn reveal(path: &Path) {
 }
 
 fn report_cli(args: &[String]) -> io::Result<()> {
-    let (mut out, mut send_it) = (None, false);
+    let mut out = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--out" | "-o" => out = Some(PathBuf::from(it.next().ok_or_else(|| io::Error::other("--out needs a path"))?)),
-            "--send" => send_it = true,
+            "--send" => return Err(io::Error::new(io::ErrorKind::Unsupported, "Caskel reports are local-only; cloud uploads are disabled.")),
             _ => return Err(io::Error::other(USAGE)),
         }
     }
@@ -466,11 +466,6 @@ fn report_cli(args: &[String]) -> io::Result<()> {
     println!("saved the report to {}", Redactor::home_only().apply(&path.display().to_string()));
     if !chosen {
         reveal(&path);
-    }
-    if send_it {
-        let id = send("report", super::part(), SystemTime::now(), &text)?;
-        super::info!("report sent", id = id);
-        println!("sent to upstream-operated Kiri Cloud as {id}; quote this ID when contacting that service");
     }
     Ok(())
 }
@@ -550,13 +545,13 @@ pub fn send(kind: &str, part: Part, created: SystemTime, text: &str) -> io::Resu
 
 /// Whether the person turned on sending crash reports (`"crashReports":
 /// true` in `ui.json`, which the window's Settings write). Off by default.
-#[cfg(any(target_os = "macos", all(target_os = "linux", feature = "window")))]
+#[cfg(target_os = "macos")]
 pub fn crash_reports_on() -> bool {
     crate::ui::prefs()["crashReports"] == true
 }
 
 /// No window, no setting: a Linux host never sends crashes by itself.
-#[cfg(not(any(target_os = "macos", all(target_os = "linux", feature = "window"))))]
+#[cfg(not(target_os = "macos"))]
 pub fn crash_reports_on() -> bool {
     false
 }
