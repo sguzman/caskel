@@ -230,8 +230,30 @@ fn ensure_caskel_target(version: &Value) -> io::Result<()> {
     }
 }
 
+/// Redact Docker/Caskel network objects down to stable non-secret fields.
+/// IPAM.Config is read-only; never copy DNS secrets, options or label values.
+fn network_summaries(networks: &Value, subject: &str) -> io::Result<Vec<Value>> {
+    let mut result = Vec::new();
+    for network in array(networks, subject)? {
+        let mut subnets = network["IPAM"]["Config"].as_array().into_iter().flatten()
+            .filter_map(|entry| entry["Subnet"].as_str().map(str::to_owned))
+            .collect::<Vec<_>>();
+        subnets.sort_unstable();
+        subnets.dedup();
+        result.push(json!({
+            "name": string(network, "Name"),
+            "id": string(network, "Id"),
+            "driver": string(network, "Driver"),
+            "internal": network["Internal"],
+            "subnets": subnets
+        }));
+    }
+    result.sort_unstable_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+    Ok(result)
+}
+
 /// A deliberately small target snapshot. Only GET requests and information
-/// needed for potential host-port conflicts; never read env or label values.
+/// needed for potential host-port and subnet conflicts; never read env or label values.
 fn discover_target(socket: &Path) -> io::Result<Value> {
     let version = get(socket, "/version")?;
     ensure_caskel_target(&version)?;
@@ -266,10 +288,12 @@ fn discover_target(socket: &Path) -> io::Result<Value> {
         }));
     }
     containers.sort_unstable_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+    let networks = network_summaries(&get(socket, "/networks")?, "target networks")?;
     Ok(json!({
         "target_socket": socket.display().to_string(),
         "target_version": string(&version, "CaskelVersion"),
-        "containers": containers
+        "containers": containers,
+        "networks": networks
     }))
 }
 
@@ -356,10 +380,7 @@ fn discover(socket: &Path) -> io::Result<Value> {
         "name": string(v, "Name"), "driver": string(v, "Driver"),
         "mountpoint": string(v, "Mountpoint")
     })).collect::<Vec<_>>();
-    let networks = array(&networks, "networks")?.iter().map(|v| json!({
-        "name": string(v, "Name"), "id": string(v, "Id"),
-        "driver": string(v, "Driver"), "internal": v["Internal"]
-    })).collect::<Vec<_>>();
+    let networks = network_summaries(&networks, "source networks")?;
     Ok(json!({
         "source_socket": socket.display().to_string(),
         "docker_version": string(&version, "Version"),
@@ -530,6 +551,26 @@ mod tests {
         assert!(run(&["docker".into(), "--list".into(), "--target-socket".into(), "/run/caskel/docker.sock".into()]).is_err());
         assert!(run(&["docker".into(), "--dry-run".into(), "--target-socket".into(), "".into()]).is_err());
         assert!(run(&["docker".into(), "--dry-run".into(), "--target-socket".into(), "/tmp/caskel".into(), "--target-socket".into(), "/tmp/other".into()]).is_err());
+    }
+
+    #[test]
+    fn network_summaries_only_expose_subnets_not_ipam_options_or_labels() {
+        let input = json!([{
+            "Name": "test-net", "Id": "abc", "Driver": "bridge", "Internal": false,
+            "IPAM": {"Config": [
+                {"Subnet": "fd20::/64", "Gateway": "fd20::1"},
+                {"Subnet": "10.19.0.0/16", "Gateway": "10.19.0.1"},
+                {"Subnet": "10.19.0.0/16"}
+            ], "Options": {"password": "PRIVATE"}},
+            "Labels": {"token": "PRIVATE"},
+            "Options": {"secret": "PRIVATE"}
+        }]);
+        let result = network_summaries(&input, "test networks").unwrap();
+        assert_eq!(result[0]["subnets"], json!(["10.19.0.0/16", "fd20::/64"]));
+        let sanitized = serde_json::to_string(&result).unwrap();
+        assert!(!sanitized.contains("PRIVATE"));
+        assert!(!sanitized.contains("Gateway"));
+        assert!(network_summaries(&json!({"not": "an array"}), "bad networks").is_err());
     }
 
     #[test]

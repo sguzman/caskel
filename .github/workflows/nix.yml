@@ -197,6 +197,7 @@ jobs:
           assert all(w["status"] == "blocked_pending_manual_validation" for w in plan["workloads"])
           assert len(plan["proposed_manual_sequence"]) >= 7
           assert plan["potential_source_target_port_overlap"] == []
+          assert plan["potential_source_target_subnet_overlap"] == []
           PY
           # Target inspection is explicitly opted in, GET-only and still
           # cannot approve a cutover. The target must be the isolated Caskel
@@ -212,6 +213,8 @@ jobs:
           assert plan["workload_count"] == len(plan["workloads"])
           assert all(w["status"] == "blocked_pending_manual_validation" for w in plan["workloads"])
           assert isinstance(plan["potential_source_target_port_overlap"], list)
+          assert isinstance(plan["potential_source_target_subnet_overlap"], list)
+          assert isinstance(plan["target_network_count"], int)
           PY
           if sudo "$BIN" migrate docker --dry-run --target-socket /var/run/docker.sock >/dev/null 2>&1; then
             echo 'Docker source accepted as a Caskel target' >&2

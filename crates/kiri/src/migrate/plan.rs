@@ -6,6 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
+use std::net::IpAddr;
 
 use serde_json::{json, Value};
 
@@ -134,6 +135,57 @@ fn source_target_port_overlap(source: &[Value], target: &[Value]) -> Vec<Value> 
     })).collect()
 }
 
+/// Compare two CIDR ranges without assuming that network names are unique
+/// across engines. An invalid or unavailable subnet is never interpreted as
+/// proof of compatibility; all workloads remain blocked.
+fn cidr_overlap(a: &str, b: &str) -> bool {
+    fn parse(s: &str) -> Option<(IpAddr, u8)> {
+        let (addr, prefix) = s.split_once('/')?;
+        let ip: IpAddr = addr.parse().ok()?;
+        let bits: u8 = prefix.parse().ok()?;
+        if bits > (if ip.is_ipv4() { 32 } else { 128 }) { return None; }
+        Some((ip, bits))
+    }
+    match (parse(a), parse(b)) {
+        (Some((IpAddr::V4(a), x)), Some((IpAddr::V4(b), y))) => {
+            let common = x.min(y);
+            common == 0 || (u32::from(a) >> (32 - common)) == (u32::from(b) >> (32 - common))
+        }
+        (Some((IpAddr::V6(a), x)), Some((IpAddr::V6(b), y))) => {
+            let common = x.min(y);
+            common == 0 || (u128::from(a) >> (128 - common)) == (u128::from(b) >> (128 - common))
+        }
+        _ => false,
+    }
+}
+
+/// Source/target network range overlaps are potential routing conflicts,
+/// not evidence of the current host routing table or an approved cutover.
+fn source_target_subnet_overlap(source: &[Value], target: &[Value]) -> Vec<Value> {
+    let mut matches = BTreeSet::new();
+    for a in source {
+        for source_cidr in strings(&a["subnets"]) {
+            for b in target {
+                for target_cidr in strings(&b["subnets"]) {
+                    if cidr_overlap(&source_cidr, &target_cidr) {
+                        matches.insert((
+                            string(a, "name"), source_cidr.clone(),
+                            string(b, "name"), target_cidr,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    matches.into_iter().map(|(source_network, source_subnet, target_network, target_subnet)| json!({
+        "source_network": source_network,
+        "source_subnet": source_subnet,
+        "target_network": target_network,
+        "target_subnet": target_subnet,
+        "reason": "configured Docker and Caskel IPAM ranges overlap; actual routes, gateways and migration isolation require review"
+    })).collect()
+}
+
 fn findings(container: &Value) -> Vec<&'static str> {
     let mut notes = BTreeSet::new();
     notes.insert("image_must_be_transferred_or_pulled_separately");
@@ -202,6 +254,11 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>) -> io::Res
         Some(v) => array(&v["containers"], "target containers")?.as_slice(),
         None => &[],
     };
+    let source_networks = array(&inventory["networks"], "source networks")?;
+    let target_networks = match target {
+        Some(v) => array(&v["networks"], "target networks")?.as_slice(),
+        None => &[],
+    };
     let mut workloads = Vec::new();
     for c in containers {
         workloads.push(json!({
@@ -229,13 +286,15 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>) -> io::Res
         "target_socket": target.map(|v| string(v, "target_socket")),
         "target_container_count": target.map(|_| target_containers.len()),
         "potential_source_target_port_overlap": source_target_port_overlap(containers, target_containers),
+        "potential_source_target_subnet_overlap": source_target_subnet_overlap(source_networks, target_networks),
+        "target_network_count": target.map(|_| target_networks.len()),
         "ready_to_apply": false,
         "workload_count": workloads.len(),
         "compose_projects": strings(&inventory["compose_projects"]),
         "potential_source_port_reuse": source_port_reuse(containers),
         "workloads": workloads,
         "unverified_requirements": [
-            "target Caskel image/platform support, capabilities and network/IPAM compatibility not fully checked",
+            "target Caskel image/platform support, capabilities, DNS, gateways and network/IPAM compatibility not fully checked; missing or malformed subnet data cannot establish safety",
             "live host port occupancy (including non-container processes) not checked; source ports must be released deliberately",
             "target storage ownership, permissions and available space not checked",
             "database and other active write-heavy services require application-consistent backup and tested restore",
@@ -263,7 +322,7 @@ mod tests {
     fn fixture() -> Value {
         json!({
             "source_socket": "/var/run/docker.sock", "docker_version": "29.0",
-            "compose_projects": ["demo"],
+            "compose_projects": ["demo"], "networks": [],
             "containers": [
                 {
                     "id": "ab01", "name": "db", "state": "running", "image": "postgres:16",
@@ -331,9 +390,11 @@ mod tests {
 
     #[test]
     fn optional_target_flags_cross_engine_overlap_but_never_approves_cutover() {
-        let source = fixture();
+        let mut source = fixture();
+        source["networks"] = json!([]);
         let target = json!({
             "target_socket": "/run/caskel/docker.sock",
+            "networks": [],
             "containers": [{
                 "name": "existing", "state": "exited",
                 "configured_port_bindings": [{
@@ -350,6 +411,44 @@ mod tests {
         assert_eq!(plan["ready_to_apply"], false);
         assert_eq!(plan["potential_source_target_port_overlap"].as_array().unwrap().len(), 2);
         assert_eq!(plan["workloads"][0]["status"], "blocked_pending_manual_validation");
+    }
+
+    #[test]
+    fn cidr_overlap_covers_ipv4_ipv6_and_rejects_bad_subnets() {
+        assert!(cidr_overlap("10.10.0.0/16", "10.10.1.0/24"));
+        assert!(!cidr_overlap("10.10.0.0/16", "10.11.0.0/16"));
+        assert!(cidr_overlap("0.0.0.0/0", "192.0.2.0/24"));
+        assert!(cidr_overlap("fd00:abcd::/32", "fd00:abcd:12::/64"));
+        assert!(!cidr_overlap("fd00:abcd::/48", "fd00:abce::/48"));
+        assert!(!cidr_overlap("10.10.0.0/16", "fd00::/64"));
+        assert!(!cidr_overlap("10.10.0.0/33", "10.10.0.0/24"));
+        assert!(!cidr_overlap("fd00::/129", "fd00::/64"));
+        assert!(!cidr_overlap("not-a-cidr", "10.10.0.0/24"));
+    }
+
+    #[test]
+    fn target_subnets_warn_deterministically_without_approving_migration() {
+        let mut source = fixture();
+        source["networks"] = json!([
+            {"name": "source-net", "subnets": ["10.22.0.0/16", "fd00:beef::/32"]},
+            {"name": "isolated", "subnets": ["10.100.0.0/16"]}
+        ]);
+        let target = json!({
+            "target_socket": "/run/caskel/docker.sock",
+            "containers": [],
+            "networks": [
+                {"name": "other", "subnets": ["fd00:beef:1::/64", "10.22.10.0/24"]},
+                {"name": "invalid", "subnets": ["not-a-cidr"]}
+            ]
+        });
+        let report = preview_with_target(&source, &target).unwrap();
+        assert_eq!(report, preview_with_target(&source, &target).unwrap());
+        assert_eq!(report["target_network_count"], 2);
+        assert_eq!(report["ready_to_apply"], false);
+        assert_eq!(report["potential_source_target_subnet_overlap"].as_array().unwrap().len(), 2);
+        assert!(report["workloads"].as_array().unwrap().iter()
+            .all(|c| c["status"] == "blocked_pending_manual_validation"));
+        assert!(preview(&source).unwrap()["potential_source_target_subnet_overlap"].as_array().unwrap().is_empty());
     }
 
     #[test]
