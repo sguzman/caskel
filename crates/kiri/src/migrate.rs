@@ -567,8 +567,9 @@ mod tests {
         }]);
         let result = network_summaries(&input, "test networks").unwrap();
         assert_eq!(result[0]["subnets"], json!(["10.19.0.0/16", "fd20::/64"]));
-        assert!(!result.to_string().contains("PRIVATE"));
-        assert!(!result.to_string().contains("Gateway"));
+        let sanitized = serde_json::to_string(&result).unwrap();
+        assert!(!sanitized.contains("PRIVATE"));
+        assert!(!sanitized.contains("Gateway"));
         assert!(network_summaries(&json!({"not": "an array"}), "bad networks").is_err());
     }
 
