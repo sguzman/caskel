@@ -3889,7 +3889,7 @@ function networkPane() {
     ${d.mode === "custom" ? `<div class="pxgrid">${field("http", tr("HTTP proxy"), "proxy.example.com:3128")}${field("https", tr("HTTPS proxy"), "proxy.example.com:3128")}${field("no_proxy", tr("Bypass for"), "*.internal, registry.corp")}</div>` : ""}
     <div class="pref"><span class="t">${tr("Pass to containers")}</span><span class="d">${tr("New containers get {http}, {https} and {no}.", { http: `<span class="mono">HTTP_PROXY</span>`, https: `<span class="mono">HTTPS_PROXY</span>`, no: `<span class="mono">NO_PROXY</span>` })}${WIN ? "" : ` ${tr("A proxy on this Mac is reached as {host}.", { host: `<span class="mono">host.docker.internal</span>` })}`}</span>
       <div class="seg" role="group" aria-label="${tr("Pass to containers")}"><button data-pxc="0" aria-pressed="${!d.containers}">${tr("Off")}</button><button data-pxc="1" aria-pressed="${!!d.containers}">${tr("On")}</button></div></div>
-    <div class="res-foot"><span class="muted">${WIN ? tr("Container traffic leaves through WSL's network.") : tr("VPNs need no setting: container traffic leaves through macOS.")}</span><span style="flex:1"></span><button class="btn primary" data-savepx>${tr("Save")}</button></div>
+    <div class="res-foot"><span class="muted">${LINUX ? "" : WIN ? tr("Container traffic leaves through WSL's network.") : tr("VPNs need no setting: container traffic leaves through macOS.")}</span><span style="flex:1"></span><button class="btn primary" data-savepx>${tr("Save")}</button></div>
   </div>`;
 }
 
@@ -3939,7 +3939,14 @@ function enginePane() {
 function resourcesPane() {
   const r = ui.res;
   if (!r) return `<div class="pane"><h3>${tr("Resources")}</h3><p class="muted">${tr("Loading…")}</p></div>`;
-  if (r.error) return `<div class="pane"><h3>${tr("Resources")}</h3><p class="muted">${tr("Start Kiri to change its resources. ({error})", { error: esc(r.error) })}</p></div>`;
+  if (r.error) return `<div class="pane"><h3>${tr("Resources")}</h3><p class="muted">${LINUX ? esc(r.error) : tr("Start Kiri to change its resources. ({error})", { error: esc(r.error) })}</p></div>`;
+  // Native Linux runs Caskel directly on the host; there is no guest VM
+  // to restart. Keep these settings visible but read-only until a reviewed
+  // Linux-specific service resource management workflow is designed.
+  if (LINUX) return `<div class="pane"><h3>${tr("Resources")} ${tr("(read-only)")}</h3>
+    <div class="pref"><span class="t">${tr("CPUs")}</span><span class="d">${cpuText(r.cpus)}</span></div>
+    <div class="pref"><span class="t">${tr("Memory")}</span><span class="d">${gb(r.memory_mib)}</span></div>
+  </div>`;
   const d = ui.resDraft;
   const maxGb = Math.max(1, Math.floor(r.max_memory_mib / 1024));
   const pending = r.awake && (r.running_cpus !== r.cpus || Math.abs(r.running_memory_mib - r.memory_mib) > 64);
@@ -7237,7 +7244,7 @@ function kubernetesPane() {
       <div class="ksan"><input class="field mono kport" id="k8s-port" type="number" min="1024" max="65535" value="${esc(portDraft)}" spellcheck="false" autocomplete="off"${dis}>
         <button class="btn" data-k8sport${dis || portDraft === String(k8s.wantPort) ? " disabled" : ""}>${tr("Save")}</button></div></div>
     <div class="pref"><span class="t">${tr("Additional certificate names")}</span><span class="d">${tr("IP addresses or domain names, separated by commas, that the API server's certificate also covers, such as this {host}'s address on your network. Saving restarts the cluster.", { host: tr(HOST) })}</span>
-      <div class="ksan"><input class="field mono" id="k8s-san" value="${esc(draft)}" placeholder="192.168.1.20, my-mac.local" spellcheck="false" autocomplete="off"${dis}>
+      <div class="ksan"><input class="field mono" id="k8s-san" value="${esc(draft)}" placeholder="192.168.1.20, host.home.arpa" spellcheck="false" autocomplete="off"${dis}>
         <button class="btn" data-k8ssan${dis || draft === (cfg.tls_san || []).join(", ") ? " disabled" : ""}>${tr("Save")}</button></div></div>
     <div class="pref"><span class="t">${tr("Delete cluster")}</span><span class="d">${tr("Removes the cluster's container, everything in it (the {volume} volume) and the {context} kubectl context, as {cmd} does.", { volume: '<span class="mono">kiri-k8s</span>', context: `<span class="mono">${esc(k8sContext())}</span>`, cmd: '<span class="mono">kiri k8s delete</span>' })}</span>
       <button class="btn danger kdelete" data-k8sdelete${dis || !node ? " disabled" : ""}>${tr("Delete cluster")}</button></div>
