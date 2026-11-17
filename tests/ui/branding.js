@@ -33,15 +33,34 @@ t("diagnostic command labels say Caskel without changing translation keys", () =
   const s = brandedCliLabel(tr("A kiri command"));
   if (!/Caskel/.test(s) || /\bkiri\b/i.test(s)) throw new Error(s);
 });
-t("Linux diagnostics explains that Kiri Cloud is external and opt-in", () => {
+t("Linux diagnostics is localized, names upstream Kiri Cloud and requires opt-in", () => {
+  const key = "Kiri Cloud is operated by upstream, not Caskel. Uploading a diagnostic report requires CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1. Review the redacted report before sending.";
+  const disclosure = tr(key);
+  if (!DICT[key] || disclosure === key) throw new Error("missing Spanish localization");
+  if (!disclosure.includes("Kiri Cloud") || !disclosure.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
+    throw new Error("provider or opt-in lost in translation");
   const pane = diagPane();
-  if (!pane.includes("Kiri Cloud") || !pane.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
-    throw new Error("external recipient or opt-in not disclosed");
+  if (!pane.includes(disclosure) || !pane.includes(tr("Send to Kiri Cloud")))
+    throw new Error("localized disclosure or external recipient button missing");
+  if (pane.includes("Send to Caskel")) throw new Error("incorrect report recipient");
   reportDialog("send");
   try {
     const text = document.querySelector("#rp")?.textContent || "";
-    if (!text.includes("upstream-operated") || !text.includes("not Caskel") || !text.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
-      throw new Error("report recipient disclosure missing");
+    if (!text.includes(disclosure)) throw new Error("localized report recipient disclosure missing");
+    if (!text.includes(tr("Send to Kiri Cloud"))) throw new Error("report dialog recipient was renamed");
+  } finally {
+    document.querySelector("#rp [data-close]")?.click();
+  }
+});
+t("Linux save report description is local and never advertises Finder", () => {
+  reportDialog("save");
+  try {
+    const key = "A redacted text file is saved locally. Read it before sharing.";
+    const description = tr(key);
+    const text = document.querySelector("#rp")?.textContent || "";
+    if (description === key || !text.includes(description)) throw new Error("save text was not localized");
+    if (text.includes("Finder")) throw new Error("Mac file manager incorrectly advertised");
+    if (!text.includes(tr("Save")) || text.includes(tr("Save to Desktop"))) throw new Error("Linux save action promises a Desktop location");
   } finally {
     document.querySelector("#rp [data-close]")?.click();
   }
