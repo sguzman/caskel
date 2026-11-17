@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 
 mod plan;
 
-const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--json]";
+const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--target-socket PATH] [--json]";
 const DEFAULT_SOCKET: &str = "/var/run/docker.sock";
 const MAX_RESPONSE: u64 = 64 * 1024 * 1024;
 
@@ -43,6 +43,18 @@ fn source_socket(requested: &Path) -> io::Result<PathBuf> {
             "source socket points to Caskel or the old Kiri engine, not Docker"));
     }
     Ok(source)
+}
+
+/// A target is opted in explicitly. It must be a distinct socket, not a
+/// variant spelling of the Docker source path.
+fn target_socket(requested: &Path, source: &Path) -> io::Result<PathBuf> {
+    let target = requested.canonicalize().map_err(|e| io::Error::new(e.kind(),
+        format!("cannot open Caskel target {}: {e}", requested.display())))?;
+    if !target.metadata()?.file_type().is_socket() || target == source {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput,
+            "Caskel target must be a distinct Unix socket, not the Docker source"));
+    }
+    Ok(target)
 }
 
 /// Decode content-length/connection-close or chunked HTTP, as Docker can use both.
@@ -120,6 +132,62 @@ fn ensure_docker_engine(version: &Value) -> io::Result<()> {
             "source API identifies as Caskel/Kiri, not Docker Engine"));
     }
     Ok(())
+}
+
+/// The requested destination must be Caskel, never a second Docker/Kiri
+/// installation. This gate is checked before reading its container list.
+fn ensure_caskel_target(version: &Value) -> io::Result<()> {
+    if version["Platform"]["Name"].as_str().is_some_and(|v| v.eq_ignore_ascii_case("caskel"))
+        && version["CaskelVersion"].as_str().is_some()
+    {
+        Ok(())
+    } else {
+        Err(io::Error::new(io::ErrorKind::InvalidInput,
+            "target API is not an identifiable Caskel engine"))
+    }
+}
+
+/// A deliberately small target snapshot. Only GET requests and information
+/// needed for potential host-port conflicts; never read env or label values.
+fn discover_target(socket: &Path) -> io::Result<Value> {
+    let version = get(socket, "/version")?;
+    ensure_caskel_target(&version)?;
+    let listing = get(socket, "/containers/json?all=1")?;
+    let mut containers = Vec::new();
+    for row in array(&listing, "target containers")? {
+        let id = string(row, "Id");
+        if id.is_empty() || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                "invalid target container ID"));
+        }
+        let detail = get(socket, &format!("/containers/{id}/json"))?;
+        let mut configured_port_bindings = detail["HostConfig"]["PortBindings"].as_object()
+            .into_iter().flat_map(|ports| ports.iter()).map(|(target, hosts)| json!({
+                "container": target,
+                "hosts": hosts.as_array().into_iter().flatten().map(|host| json!({
+                    "host_ip": host["HostIp"], "host_port": host["HostPort"]
+                })).collect::<Vec<_>>()
+            })).collect::<Vec<_>>();
+        configured_port_bindings.sort_unstable_by(|a, b|
+            a["container"].as_str().cmp(&b["container"].as_str()));
+        let published_ports = row["Ports"].as_array().into_iter().flatten().map(|p| json!({
+            "container_port": p["PrivatePort"], "host_port": p["PublicPort"],
+            "host_ip": p["IP"], "protocol": p["Type"]
+        })).collect::<Vec<_>>();
+        let name = strings(&row["Names"]).into_iter().next().unwrap_or_default();
+        containers.push(json!({
+            "name": name.trim_start_matches('/'),
+            "state": string(row, "State"),
+            "configured_port_bindings": configured_port_bindings,
+            "published_ports": published_ports
+        }));
+    }
+    containers.sort_unstable_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+    Ok(json!({
+        "target_socket": socket.display().to_string(),
+        "target_version": string(&version, "CaskelVersion"),
+        "containers": containers
+    }))
 }
 
 fn discover(socket: &Path) -> io::Result<Value> {
@@ -226,6 +294,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
     }
     let mut socket = PathBuf::from(DEFAULT_SOCKET);
+    let mut requested_target: Option<PathBuf> = None;
     let mut list = false;
     let mut dry_run = false;
     let mut json_output = false;
@@ -245,22 +314,43 @@ pub fn run(args: &[String]) -> io::Result<()> {
                 socket = PathBuf::from(s);
                 changed_socket = true;
             }
+            "--target-socket" if requested_target.is_none() => {
+                i += 1;
+                let path = args.get(i).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, USAGE))?;
+                if path.is_empty() || path.starts_with('-') {
+                    return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
+                }
+                requested_target = Some(PathBuf::from(path));
+            }
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE))
         }
         i += 1;
     }
-    if !list && !dry_run {
+    if (!list && !dry_run) || (list && requested_target.is_some()) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
     }
     let socket = source_socket(&socket)?;
     let inventory = discover(&socket)?;
-    let result = if dry_run { plan::preview(&inventory)? } else { inventory };
+    let result = if dry_run {
+        if let Some(requested) = requested_target {
+            let target = target_socket(&requested, &socket)?;
+            let destination = discover_target(&target)?;
+            plan::preview_with_target(&inventory, &destination)?
+        } else {
+            plan::preview(&inventory)?
+        }
+    } else {
+        inventory
+    };
     if json_output {
         println!("{}", serde_json::to_string_pretty(&result).map_err(io::Error::other)?);
     } else if dry_run {
         println!("Caskel migration dry-run (READ ONLY): {}", socket.display());
-        println!("{} workloads; target engine has NOT been inspected.",
-            result["workload_count"].as_u64().unwrap_or_default());
+        println!("{} workloads; target Caskel inspected: {} (no readiness approval).",
+            result["workload_count"].as_u64().unwrap_or_default(),
+            result["target_caskel_inspected"].as_bool().unwrap_or(false));
+        println!("{} potential source-to-target host-port conflicts.",
+            result["potential_source_target_port_overlap"].as_array().map_or(0, Vec::len));
         println!("{} possible source-side host-port collisions.",
             result["potential_source_port_reuse"].as_array().map_or(0, Vec::len));
         for c in array(&result["workloads"], "preview workloads")? {
@@ -327,6 +417,16 @@ mod tests {
         assert!(run(&["docker".into(), "--dry-run".into(), "--socket".into(), "".into()]).is_err());
         assert!(run(&["docker".into(), "--list".into(), "--dry-run".into()]).is_err());
         assert!(run(&["docker".into(), "--list".into(), "--bad".into()]).is_err());
+        assert!(run(&["docker".into(), "--list".into(), "--target-socket".into(), "/run/caskel/docker.sock".into()]).is_err());
+        assert!(run(&["docker".into(), "--dry-run".into(), "--target-socket".into(), "".into()]).is_err());
+        assert!(run(&["docker".into(), "--dry-run".into(), "--target-socket".into(), "/tmp/caskel".into(), "--target-socket".into(), "/tmp/other".into()]).is_err());
+    }
+
+    #[test]
+    fn target_version_rejects_docker_and_old_kiri() {
+        assert!(ensure_caskel_target(&json!({"Platform": {"Name": "Caskel"}, "CaskelVersion": "0.0.0"})).is_ok());
+        assert!(ensure_caskel_target(&json!({"Platform": {"Name": "Docker Engine"}, "Version": "29"})).is_err());
+        assert!(ensure_caskel_target(&json!({"Platform": {"Name": "Kiri"}, "KiriVersion": "0.2"})).is_err());
     }
 
     #[test]
