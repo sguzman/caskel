@@ -11,13 +11,13 @@ gate in `docs/roadmap.md`.
   headless Nix package. Do **not** run `caskel ui --start`.
 - Do not change Docker's default context or socket, production containers,
   systemd units, privileged group membership, or old Kiri state for this QA.
-- Do not click the UI's setup/fix, restart, delete, auto-reporting, or cloud
-  send buttons. Some features are deliberately unavailable on Linux.
+- Do not click setup/fix, restart, delete, or other host-mutating actions.
+  Cloud sharing and report uploads must not be presented at all on Linux.
 - The UI can read engine status and may write UI preferences/diagnostic
   markers under the current user's Caskel state directory. Do not treat
   starting a GUI as a strictly read-only operation.
-- Leave `CASKEL_ALLOW_LEGACY_KIRI_CLOUD` unset for this test. Do not submit
-  any diagnostic report to upstream Kiri Cloud.
+- Do not submit diagnostic reports to any remote service. Old cloud opt-in
+  variables must not enable uploads.
 - Stop and record a failure rather than attempting privileged fixes.
 
 ## Preflight and window build (fish, EndeavourOS/Arch)
@@ -60,19 +60,18 @@ evidence of a complete GUI acceptance session.
 3. When Settings → About is accessible, the installed version is shown as
    **Nix-managed**. No upstream Kiri release feed, `.deb`/`.rpm` download,
    automatic updater toggle, or upstream site is presented as Caskel's.
-4. In Settings → Diagnostics, the external recipient is clearly **Kiri
-   Cloud** (not a Caskel cloud), and the explicit
-   `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1` prerequisite is visible before upload.
-   **Do not actually send**.
-5. Inspect the report dialog in **save** and **send** modes, cancelling each
-   without writing or uploading: the save copy must not promise macOS Finder
-   or a fixed Desktop path; the send copy names Kiri Cloud, not Caskel.
-6. If practical, switch the UI language to Spanish, then an RTL locale
-   (Arabic/Persian/Central Kurdish) and a CJK locale. Ensure the report
-   disclosure, ID placeholders and opt-in variable remain readable and no
-   message falls back to unlocalized English. Switching a language **writes
-   a UI preference**; skip this step if that is unacceptable for the host.
-7. Record build output, compositor/window behavior, screenshots (with no
+4. In Settings → Diagnostics, **Create report…** remains, and there are no
+   cloud recipient, upload, auto-send or send-crash controls.
+5. Inspect the **local save** report dialog without writing a report.
+   No macOS Finder or guaranteed Desktop path should be advertised.
+6. The Share navigation entry is absent on Linux. An old configured cloud
+   token or `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1` cannot override the
+   networking prohibition; check with source/CLI tests, not live uploads.
+7. If practical, switch the UI language to Spanish, then an RTL locale
+   (Arabic/Persian/Central Kurdish) and a CJK locale. Ensure local report
+   wording stays readable and does not fall back to English. Language changes
+   write a local UI preference.
+8. Record build output, compositor/window behavior, screenshots (with no
    hostnames, tokens, credentials or private container details), and any
    failed steps. Do not mark them passed without observing them.
 
