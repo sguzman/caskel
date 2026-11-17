@@ -6555,7 +6555,7 @@ function drawReport() {
     ${done ? `<div class="rp-id"><span class="lab">${tr("Report ID")}</span><span class="val">${esc(rp.id)}</span><button class="btn sm" data-rpcopy>${dgIcon("copy")}${tr("Copy")}</button></div>` : ""}
     ${rp.error ? `<p class="err">${send_ ? tr("Couldn't send it: {error}", { error: esc(rp.error) }) : tr("Couldn't save it: {error}", { error: esc(rp.error) })}</p>` : ""}
     <div class="row-end"><span></span><span>${done ? `<button class="btn primary" data-close>${tr("Done")}</button>`
-      : `<button class="btn" data-close>${tr("Cancel")}</button> <button class="btn primary" data-rpgo${rp.state === "busy" ? " disabled" : ""}>${rp.state === "busy" ? (send_ ? tr("Sending…") : tr("Saving…")) : rp.error ? tr("Try again") : send_ ? tr("Send") : tr("Save to Desktop")}</button>`}</span></div></div>`;
+      : `<button class="btn" data-close>${tr("Cancel")}</button> <button class="btn primary" data-rpgo${rp.state === "busy" ? " disabled" : ""}>${rp.state === "busy" ? (send_ ? tr("Sending…") : tr("Saving…")) : rp.error ? tr("Try again") : send_ ? tr("Send") : (LINUX ? tr("Save") : tr("Save to Desktop"))}</button>`}</span></div></div>`;
 }
 
 /* The card after a crash, in the update card's place (an update offer goes
