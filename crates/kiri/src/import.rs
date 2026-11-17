@@ -18,7 +18,7 @@ use crate::client;
 pub const SOURCES: &[(&str, &str)] = if cfg!(windows) { &[("desktop-linux", "Docker Desktop")] } else { &[("orbstack", "OrbStack"), ("desktop-linux", "Docker Desktop")] };
 
 fn docker() -> io::Result<PathBuf> {
-    client::docker_cli().map(PathBuf::from).ok_or_else(|| io::Error::other("no docker CLI found (Kiri bundles one)"))
+    client::docker_cli().map(PathBuf::from).ok_or_else(|| io::Error::other("no docker CLI found; install the Docker CLI to use this command"))
 }
 
 /// The docker CLI, run without a console window of its own (Windows opens
@@ -106,7 +106,7 @@ pub fn image(source: &str, name: &str) -> io::Result<()> {
         return Err(io::Error::other(format!("{ctx}: {}", String::from_utf8_lossy(&saved.stderr).trim())));
     }
     if !load.status.success() {
-        return Err(io::Error::other(format!("kiri: {}", String::from_utf8_lossy(&load.stderr).trim())));
+        return Err(io::Error::other(format!("caskel: {}", String::from_utf8_lossy(&load.stderr).trim())));
     }
     Ok(())
 }
@@ -150,7 +150,7 @@ pub fn volume(source: &str, name: &str) -> io::Result<()> {
         return Err(io::Error::other(format!("{ctx}: {}", String::from_utf8_lossy(&r.stderr).trim())));
     }
     if !write.status.success() {
-        return Err(io::Error::other(format!("kiri: {}", String::from_utf8_lossy(&write.stderr).trim())));
+        return Err(io::Error::other(format!("caskel: {}", String::from_utf8_lossy(&write.stderr).trim())));
     }
     Ok(())
 }
@@ -228,7 +228,7 @@ fn pick(given: Option<&str>, answers: impl Fn(&str) -> bool) -> io::Result<&'sta
 }
 
 const KINDS: [&str; 3] = ["image", "volume", "container"];
-const USAGE: &str = "usage: kiri import [orbstack|desktop-linux] [--list | image|volume|container NAME]";
+const USAGE: &str = "usage: caskel import [orbstack|desktop-linux] [--list | image|volume|container NAME]";
 
 /// The source named (if any) and what to import: everything (`None`) or one
 /// item. A kind without exactly one name is a usage error, never everything.
@@ -268,7 +268,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
         for k in ["images", "volumes", "containers"] {
             println!("{k}:");
             for v in list(k) {
-                println!("  {}{}", v["name"].as_str().unwrap_or(""), if v["have"] == true { "  (already in Kiri)" } else { "" });
+                println!("  {}{}", v["name"].as_str().unwrap_or(""), if v["have"] == true { "  (already in Caskel)" } else { "" });
             }
         }
         return Ok(());
