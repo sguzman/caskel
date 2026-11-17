@@ -177,8 +177,16 @@ jobs:
           sudo "$BIN" run -d --name caskel-ci-port --network caskel-ci-dns \
             -p 127.0.0.1:18765:8080 alpine:3.21 \
             sh -c 'mkdir -p /www; echo caskel-port-ok > /www/index.html; exec busybox httpd -f -p 8080 -h /www'
-          curl -fsS --retry 8 --retry-connrefused --retry-delay 1 --max-time 3 \
-            http://127.0.0.1:18765/ | grep -qx caskel-port-ok
+          if ! (curl -fsS --retry 8 --retry-connrefused --retry-delay 1 --max-time 3 \
+            http://127.0.0.1:18765/ | grep -qx caskel-port-ok); then
+            echo 'Caskel published TCP port unavailable: diagnostic snapshot (CI only)' >&2
+            sudo "$BIN" ps -a || true
+            sudo "$BIN" inspect -f '{{.State.Status}} {{.State.Error}} {{json .HostConfig.PortBindings}} {{json .NetworkSettings.Ports}}' caskel-ci-port || true
+            sudo "$BIN" logs caskel-ci-port || true
+            sudo ss -ltnp | grep -E '(:18765|State)' || true
+            sudo journalctl -u caskel.service -n 90 --no-pager || true
+            exit 1
+          fi
           # A second Caskel container must not steal the reserved host
           # listener. The first container must remain reachable afterward.
           if sudo "$BIN" run --rm --network caskel-ci-dns \
