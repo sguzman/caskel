@@ -6569,9 +6569,9 @@ function crashCard() {
   const head = (ic, h, sub) => `<div class="updcard" role="dialog" aria-label="${esc(h)}">
     <div class="head"><div class="ic ${ic}">${dgIcon(ic === "ok" ? "checkcircle" : "warning")}</div><div class="txt"><h4>${esc(h)}</h4><div class="sub">${sub}</div></div>
     <button class="close" data-crashcard="close" aria-label="${tr("Close")}">${UPD_ICON.x}</button></div>`;
-  if (c.id || c.state === "sent") return `${head("ok", tr("Report sent"), tr("Quote {id} if you write to us about this crash.", { id: `<span class="mono">${esc(c.id)}</span>` }))}
+  if (c.id || c.state === "sent") return `${head("ok", tr("Report sent"), (LINUX ? `Upstream-operated Kiri Cloud received report <span class="mono">${esc(c.id || "")}</span>; Caskel does not operate that service.` : tr("Quote {id} if you write to us about this crash.", { id: `<span class="mono">${esc(c.id)}</span>` })))}
     <div class="row">${btn(`${dgIcon("copy")}${tr("Copy ID")}`, 'data-crashcard="copy"')}<button class="lnk" data-crashcard="view">${tr("Details")}</button></div></div>`;
-  if (c.sent || (c.crashReports && c.state !== "error")) return `${head("calm", title, tr("{who} stopped {when}.{more} Crash reports are sent automatically, so this one goes to Kiri too.", { who, when: esc(when), more }))}
+  if (c.sent || (c.crashReports && c.state !== "error")) return `${head("calm", title, (LINUX ? `${esc(who)} stopped ${esc(when)}.${more} ${c.sent ? "This report was sent to upstream Kiri Cloud." : "Automatic crash reporting is enabled, but sending to Kiri Cloud still requires explicit CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1 opt-in."}` : tr("{who} stopped {when}.{more} Crash reports are sent automatically, so this one goes to Kiri too.", { who, when: esc(when), more })))}
     <div class="row"><button class="lnk" data-crashcard="view">${tr("Details")}</button></div></div>`;
   return `${head("calm", title, tr("{who} stopped {when}.{more} A report helps us fix it: the stack trace and the last 200 log lines before it, with your home folder and tokens blanked.", { who, when: esc(when), more }))}
     ${c.error ? `<div class="err">${tr("Couldn't send it: {error}", { error: esc(c.error) })}</div>` : ""}
