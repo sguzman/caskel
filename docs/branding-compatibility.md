@@ -51,6 +51,12 @@ diagnostics as Caskel services.
   it must not check or advertise inherited Kiri release feeds, upstream
   `.deb`/`.rpm` downloads, or automatic in-app installation as Caskel updates.
   UI tests cover the pinned Nix state and external Kiri Cloud disclosures.
+- The Caskel Linux diagnostics screen must name the upstream-operated Kiri Cloud
+  service as the actual recipient, explain the explicit
+  `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1` opt-in before uploading, and not imply
+  Caskel operates the service. New Linux-only disclosures use the existing
+  translation catalog keys in all 37 supported locale files. GTK/window
+  desktop acceptance is still distinct from headless Chrome and compile CI.
 - Do not auto-switch Docker's default context, rewrite old Kiri files, or
   restart either old Kiri or production Docker.
 - Do not bulk-replace protocol/setting identifiers without versioned
