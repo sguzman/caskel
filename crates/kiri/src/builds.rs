@@ -18,7 +18,7 @@ use crate::flavor::{CONTEXT, Name};
 pub const BUILDER: Name = Name("kiri-build", "kiri-dev-build");
 
 fn buildx(args: &[&str]) -> io::Result<(String, String)> {
-    let docker = crate::client::docker_cli().ok_or_else(|| io::Error::other("no docker CLI found (Kiri.app bundles one)"))?;
+    let docker = crate::client::docker_cli().ok_or_else(|| io::Error::other("no docker CLI found; install the Docker CLI to use Caskel builds"))?;
     let mut cmd = Command::new(docker);
     // No console window flashing up from Kiri's window on Windows.
     #[cfg(windows)]
@@ -220,7 +220,7 @@ pub(crate) fn stored(store: &caskel_image::Store, name: &str) -> io::Result<(cas
             store.images()?.into_iter().find(|i| !id.is_empty() && i.config_digest.trim_start_matches("sha256:").starts_with(id))
         }
     };
-    let i = found.ok_or_else(|| io::Error::other(format!("no image {name} in Kiri")))?;
+    let i = found.ok_or_else(|| io::Error::other(format!("no image {name} in Caskel")))?;
     let manifest = json!({"config": {"digest": i.config_digest}, "layers": i.layers.iter().map(|l| json!({"size": l.size, "digest": l.digest})).collect::<Vec<_>>()});
     let config: Value = serde_json::from_slice(&store.read_config(&i.config_digest)?).map_err(io::Error::other)?;
     Ok((i, manifest, config))
@@ -319,13 +319,13 @@ pub fn builder() -> io::Result<bool> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while !crate::client::alive() {
         if std::time::Instant::now() > deadline {
-            return Err(io::Error::other("the Kiri daemon isn't answering yet"));
+            return Err(io::Error::other("the Caskel daemon isn't answering yet"));
         }
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
     let quiet = || std::process::Stdio::null();
     if !Command::new(&docker).args(["buildx", "version"]).stdout(quiet()).stderr(quiet()).status()?.success() {
-        println!("docker build: no buildx plugin here, so docker builds with Kiri's classic builder API (the same BuildKit, run by the daemon)");
+        println!("docker build: no buildx plugin here, so docker builds with Caskel's classic builder API (the same BuildKit, run by the daemon)");
         return Ok(false);
     }
     let inspect = Command::new(&docker).args(["buildx", "inspect", BUILDER.get()]).stderr(quiet()).output()?;
@@ -375,7 +375,7 @@ fn ensure_context(docker: impl AsRef<std::ffi::OsStr>) -> io::Result<()> {
         return Ok(());
     }
     let host = format!("host=unix://{}", crate::client::socket()?.display());
-    let out = Command::new(docker).args(["context", "create", CONTEXT.get(), "--description", "Kiri", "--docker", &host]).stdout(quiet()).output()?;
+    let out = Command::new(docker).args(["context", "create", CONTEXT.get(), "--description", "Caskel", "--docker", &host]).stdout(quiet()).output()?;
     if out.status.success() { Ok(()) } else { Err(io::Error::other(failure("docker context create failed", &out.stderr))) }
 }
 
