@@ -169,13 +169,13 @@ jobs:
           sudo "$BIN" network create caskel-ci-dns
           sudo "$BIN" run -d --name caskel-ci-dns-peer --network caskel-ci-dns alpine:3.21 sleep 1d
           sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
-            sh -c 'nslookup caskel-ci-dns-peer | grep -q caskel-ci-dns-peer'
+            sh -c 'nslookup caskel-ci-dns-peer >/dev/null'
           # Network-scoped DNS must not leak names to an unrelated private
           # bridge. A failed lookup is the expected result, not a skipped test.
           sudo "$BIN" network create caskel-ci-dns-isolated
           sudo "$BIN" run -d --name caskel-ci-isolated-peer --network caskel-ci-dns-isolated alpine:3.21 sleep 1d
           sudo "$BIN" run --rm --network caskel-ci-dns-isolated alpine:3.21 \
-            sh -c 'nslookup caskel-ci-isolated-peer | grep -q caskel-ci-isolated-peer; if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "cross-network DNS leak" >&2; exit 1; fi'
+            sh -c 'nslookup caskel-ci-isolated-peer >/dev/null; if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "cross-network DNS leak" >&2; exit 1; fi'
           sudo "$BIN" rm -f caskel-ci-isolated-peer
           sudo "$BIN" network rm caskel-ci-dns-isolated
           # Removing a network while a live peer is attached must fail and
@@ -185,7 +185,7 @@ jobs:
             exit 1
           fi
           sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
-            sh -c 'nslookup caskel-ci-dns-peer | grep -q caskel-ci-dns-peer'
+            sh -c 'nslookup caskel-ci-dns-peer >/dev/null'
           # On this disposable runner, publish a loopback-only TCP port from
           # a Caskel bridge container. This must neither affect Docker's
           # own containers nor require swapping the Docker default context.
@@ -258,7 +258,7 @@ jobs:
           # control prevents DNS outages from passing the negative test.
           sudo "$BIN" run -d --name caskel-ci-dns-survivor --network caskel-ci-dns alpine:3.21 sleep 1d
           sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
-            sh -c 'nslookup caskel-ci-dns-survivor | grep -q caskel-ci-dns-survivor; if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "stale container DNS name" >&2; exit 1; fi'
+            sh -c 'nslookup caskel-ci-dns-survivor >/dev/null; if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "stale container DNS name" >&2; exit 1; fi'
           sudo "$BIN" rm -f caskel-ci-dns-survivor
           sudo "$BIN" network rm caskel-ci-dns
           test "$docker_networks_before" = "$(docker network ls -q | sort)"
