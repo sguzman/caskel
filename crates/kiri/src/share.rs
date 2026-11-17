@@ -354,16 +354,14 @@ fn tls_config(alpn: &[u8]) -> io::Result<Arc<rustls::ClientConfig>> {
 
 /// Caskel is not Kiri Cloud. A persisted Kiri account/config does not grant
 /// consent to send reports, tokens or container details to the old edge.
-fn allow_legacy_cloud(srv: &Server) -> io::Result<()> {
-    if (srv.host == "edge.runkiri.com" || srv.host.ends_with(".runkiri.com"))
-        && std::env::var("CASKEL_ALLOW_LEGACY_KIRI_CLOUD").as_deref() != Ok("1")
-    {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "Caskel does not automatically connect to Kiri Cloud. The legacy upstream endpoint requires CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1 for this process. Review the recipient before sending any diagnostics.",
-        ));
-    }
-    Ok(())
+/// No upstream cloud or custom Share relay is part of the Linux-first product.
+/// This guard is at the dial boundary, so stale preferences, tokens and direct
+/// calls cannot silently initiate a tunnel or report upload.
+fn allow_legacy_cloud(_srv: &Server) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        "Caskel does not connect to cloud sharing or diagnostic services.",
+    ))
 }
 
 fn dial(srv: &Server, alpn: &[u8]) -> io::Result<(TcpStream, rustls::ClientConnection)> {
@@ -2146,18 +2144,18 @@ mod tests {
     }
 
     #[test]
-    fn inherited_kiri_edge_is_rejected_without_explicit_caskel_consent() {
+    fn all_cloud_edges_are_rejected_even_with_legacy_configuration() {
         let upstream = Server {
             host: "edge.runkiri.com".into(), port: 443, dial: "edge.runkiri.com:443".into(),
         };
         let custom = Server {
             host: "relay.home.arpa".into(), port: 443, dial: "relay.home.arpa:443".into(),
         };
-        if std::env::var("CASKEL_ALLOW_LEGACY_KIRI_CLOUD").as_deref() != Ok("1") {
-            assert_eq!(allow_legacy_cloud(&upstream).unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+        for srv in [&upstream, &custom] {
+            assert_eq!(allow_legacy_cloud(srv).unwrap_err().kind(), io::ErrorKind::PermissionDenied);
         }
-        assert!(allow_legacy_cloud(&custom).is_ok());
     }
+
 
     #[test]
     fn a_kiri_share_writes_its_traffic_for_the_window() {
