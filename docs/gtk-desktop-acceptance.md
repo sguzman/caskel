@@ -84,3 +84,46 @@ All 37 translation catalogs pass key/placeholder parity and the UI
 regressions; Nix/Rust, GTK compilation, CodeQL and performance CI pass on
 the final commit; **and** the desktop session above is actually exercised.
 Passing only the first two conditions leaves native desktop QA pending.
+
+## Real-desktop acceptance record — 2026-11-17
+
+**Result: branding-first desktop acceptance accepted with the observations and
+limitations below.** The owner exercised the optional Caskel GTK window on
+EndeavourOS/Hyprland with the dedicated Caskel engine. Screenshots and terminal
+output were reviewed during the acceptance session; do not confuse this with a
+full product, security, translation-quality or production-host certification.
+
+Observed on the actual desktop:
+
+- The window opens and reaches the main dashboard after the dedicated
+  `caskel.service` becomes active; the former stale onboarding state cleared
+  after reopening the window. The service was explicitly enabled by the owner.
+- The Caskel identity and original UI artwork appear in the dashboard,
+  Settings and About. Docker's default engine/context remained selected.
+- Settings → Diagnostics contains **Create report…**, local crash history and
+  logs, without cloud-send or auto-report controls; the earlier local report
+  dialog showed a redacted local save and no Finder promise.
+- The Share navigation item is absent. PR #40's transport and CLI prohibitions
+  are covered by CI, not by initiating real network uploads.
+- Settings → Resources displays CPU and memory read-only, without editable
+  sliders or inherited VM restart controls; engine status remained Running.
+- Dark, Light and System themes were switched successfully on Hyprland;
+  Spanish selection rendered the Appearance page and preserved its layout.
+
+Evidence limits, deliberately not counted as visual passes:
+
+- Full translation quality across 37 locales was **not** human reviewed.
+  Catalog key/placeholder parity and UI regressions were checked by CI; the
+  owner requested no additional translation QA.
+- The Linux Network settings pane, RTL/CJK rendering on this desktop and the
+  final startup-warning removal in PR #42 were not manually re-observed after
+  that merge. PR #42 passed UI, GTK, Linux Nix, CodeQL and Speed CI. The
+  old build's harmless rejected-share toast was previously visible; this is
+  addressed by PR #42, not claimed visually retested here.
+- This session did not exercise real container migration, live production
+  workloads, persistent-volume durability or a full privileged host matrix.
+
+The branding-first **manual acceptance obligation is closed** with these
+explicit limitations. Keep any newly discovered Linux UI defects as focused
+regressions; they need not reopen the entire branding freeze. Continue with
+the next engineering roadmap workstream, preserving Docker isolation.
