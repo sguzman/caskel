@@ -143,7 +143,7 @@ fn cidr_overlap(a: &str, b: &str) -> bool {
         let (addr, prefix) = s.split_once('/')?;
         let ip: IpAddr = addr.parse().ok()?;
         let bits: u8 = prefix.parse().ok()?;
-        if bits > if ip.is_ipv4() { 32 } else { 128 } { return None; }
+        if bits > (if ip.is_ipv4() { 32 } else { 128 }) { return None; }
         Some((ip, bits))
     }
     match (parse(a), parse(b)) {
@@ -418,7 +418,7 @@ mod tests {
         assert!(cidr_overlap("10.10.0.0/16", "10.10.1.0/24"));
         assert!(!cidr_overlap("10.10.0.0/16", "10.11.0.0/16"));
         assert!(cidr_overlap("0.0.0.0/0", "192.0.2.0/24"));
-        assert!(cidr_overlap("fd00:abcd::/48", "fd00:abcd:12::/64"));
+        assert!(cidr_overlap("fd00:abcd::/32", "fd00:abcd:12::/64"));
         assert!(!cidr_overlap("fd00:abcd::/48", "fd00:abce::/48"));
         assert!(!cidr_overlap("10.10.0.0/16", "fd00::/64"));
         assert!(!cidr_overlap("10.10.0.0/33", "10.10.0.0/24"));
@@ -430,7 +430,7 @@ mod tests {
     fn target_subnets_warn_deterministically_without_approving_migration() {
         let mut source = fixture();
         source["networks"] = json!([
-            {"name": "source-net", "subnets": ["10.22.0.0/16", "fd00:beef::/48"]},
+            {"name": "source-net", "subnets": ["10.22.0.0/16", "fd00:beef::/32"]},
             {"name": "isolated", "subnets": ["10.100.0.0/16"]}
         ]);
         let target = json!({
