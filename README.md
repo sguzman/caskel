@@ -84,16 +84,14 @@ See [UPSTREAM.md](UPSTREAM.md) for our branching/integration process,
 must not be read as Caskel release announcements. Current support is covered
 by `docs/features.md` and `RELEASES.md`.
 
-## Legacy Kiri Cloud separation
+## Local-only diagnostics and no cloud sharing
 
-Caskel is **not** Kiri Cloud. The inherited Share and diagnostics code
-still knows how to contact `edge.runkiri.com`, but it refuses that upstream
-endpoint unless the initiating process explicitly sets
-`CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1`. An old Kiri account or config file does
-not provide consent to send Caskel reports, account tokens or workload
-metadata. The opt-in is only for intentional compatibility with an
-upstream-operated service. There is **no Caskel Cloud** service or
-automatic report-upload agreement.
+Caskel has **no cloud account, hosted sharing, or diagnostics upload service**.
+Local logs and redacted diagnostic report export remain available. Legacy Kiri
+Cloud and Share network connections are rejected at the transport boundary,
+even if an old opt-in environment variable, account token, or relay setting
+is present. The `caskel share` command is unsupported. Docker image pulls
+and other explicitly requested registry operations are separate functionality.
 
 ## Runtime configuration identity
 
