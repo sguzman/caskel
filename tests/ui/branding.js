@@ -29,6 +29,23 @@ t("pinned Nix release state never advertises Kiri downloads or automatic updates
     ui.upd = oldUpdate;
   }
 });
+t("diagnostic command labels say Caskel without changing translation keys", () => {
+  const s = brandedCliLabel(tr("A kiri command"));
+  if (!/Caskel/.test(s) || /\bkiri\b/i.test(s)) throw new Error(s);
+});
+t("Linux diagnostics explains that Kiri Cloud is external and opt-in", () => {
+  const pane = diagPane();
+  if (!pane.includes("Kiri Cloud") || !pane.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
+    throw new Error("external recipient or opt-in not disclosed");
+  reportDialog("send");
+  try {
+    const text = document.querySelector("#rp")?.textContent || "";
+    if (!text.includes("upstream-operated") || !text.includes("not Caskel") || !text.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
+      throw new Error("report recipient disclosure missing");
+  } finally {
+    document.querySelector("#rp [data-close]")?.click();
+  }
+});
 t("upstream Kiri Cloud and Kiri Share are not falsely rebranded", () => {
   if (caskelBrand("Kiri Cloud; Kiri Share") !== "Kiri Cloud; Kiri Share") throw new Error("falsely named a Caskel cloud");
 });
