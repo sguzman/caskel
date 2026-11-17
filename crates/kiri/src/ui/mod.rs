@@ -342,7 +342,7 @@ fn engine(rx: Receiver<Cmd>, tx: Sender<Cmd>) {
 /// Follows the daemon's event stream on its own thread; each event asks
 /// the engine for a refresh. Reconnects when the daemon comes back.
 fn watch(tx: Sender<Cmd>) {
-    let _ = std::thread::Builder::new().name("kiri-ui-events".into()).spawn(move || loop {
+    let _ = std::thread::Builder::new().name("caskel-ui-events".into()).spawn(move || loop {
         if client::alive() {
             if tx.send(Cmd::Refresh).is_err() {
                 return;
@@ -621,7 +621,7 @@ fn update_check(manual: bool) {
         if manual {
             emit(serde_json::json!({"type": "enginestale", "version": v}).to_string());
         } else {
-            diag::info!("the engine runs an older Kiri; restarting it", engine = v, app = env!("CARGO_PKG_VERSION"));
+            diag::info!("the Caskel engine is older than the client; restarting it", engine = v, app = env!("CARGO_PKG_VERSION"));
             restart_engine_now();
         }
     }
@@ -713,7 +713,7 @@ fn update_download() {
         return;
     }
     UPDATE_CANCEL.store(false, Ordering::Relaxed);
-    let _ = std::thread::Builder::new().name("kiri-update".into()).spawn(|| {
+    let _ = std::thread::Builder::new().name("caskel-update".into()).spawn(|| {
         let result = update::latest().and_then(|r| {
             let mut last = std::time::Instant::now() - Duration::from_secs(1);
             update::download(
