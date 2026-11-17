@@ -11,9 +11,10 @@ use std::time::Duration;
 use serde_json::{json, Value};
 
 mod host_listeners;
+mod host_storage;
 mod plan;
 
-const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--target-socket PATH] [--inspect-host-listeners] [--json]";
+const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--target-socket PATH] [--inspect-host-listeners] [--inspect-host-storage] [--json]";
 const DEFAULT_SOCKET: &str = "/var/run/docker.sock";
 const MAX_RESPONSE: u64 = 64 * 1024 * 1024;
 
@@ -403,6 +404,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
     let mut list = false;
     let mut dry_run = false;
     let mut inspect_host_listeners = false;
+    let mut inspect_host_storage = false;
     let mut json_output = false;
     let mut changed_socket = false;
     let mut i = 1;
@@ -412,6 +414,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
             "--dry-run" if !list && !dry_run => dry_run = true,
             "--json" if !json_output => json_output = true,
             "--inspect-host-listeners" if !inspect_host_listeners => inspect_host_listeners = true,
+            "--inspect-host-storage" if !inspect_host_storage => inspect_host_storage = true,
             "--socket" if !changed_socket => {
                 i += 1;
                 let s = args.get(i).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, USAGE))?;
@@ -433,7 +436,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
         }
         i += 1;
     }
-    if (!list && !dry_run) || (list && (requested_target.is_some() || inspect_host_listeners)) {
+    if (!list && !dry_run) || (list && (requested_target.is_some() || inspect_host_listeners || inspect_host_storage)) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
     }
     let socket = source_socket(&socket)?;
@@ -445,7 +448,13 @@ pub fn run(args: &[String]) -> io::Result<()> {
         } else {
             None
         };
-        if inspect_host_listeners {
+        if inspect_host_storage {
+            // Only metadata of paths already present in the Docker source
+            // inventory. No contents, directory traversal, or writes.
+            let storage = host_storage::snapshot(&inventory);
+            let listeners = if inspect_host_listeners { Some(host_listeners::snapshot()?) } else { None };
+            plan::preview_with_host_storage(&inventory, destination.as_ref(), listeners.as_deref(), &storage)?
+        } else if inspect_host_listeners {
             // This reads /proc only in the CLI's own network namespace;
             // it never attempts a bind or changes either engine.
             let listeners = host_listeners::snapshot()?;
@@ -472,6 +481,10 @@ pub fn run(args: &[String]) -> io::Result<()> {
         if result["local_host_listeners_inspected"] == true {
             println!("{} observed local host sockets matching configured Docker ports (read-only snapshot; ownership unknown).",
                 result["observed_source_port_occupancy"].as_array().map_or(0, Vec::len));
+        }
+        if result["local_host_storage_inspected"] == true {
+            println!("{} local source mount paths inspected (metadata only; target and restore unverified).",
+                result["observed_source_storage"].as_array().map_or(0, Vec::len));
         }
         for c in array(&result["workloads"], "preview workloads")? {
             let safe = |s: &str| s.chars().filter(|c| !c.is_control()).take(48).collect::<String>();
