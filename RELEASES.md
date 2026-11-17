@@ -52,7 +52,10 @@ operations.
 Accept upstream changes selectively through reviewed `sync/*` branches.
 Keep Apache-2.0 `LICENSE`/`NOTICE` and original copyright provenance.
 Historical GPL guest-kernel corresponding-source materials are retained
-pending a separate provenance/legal review.
+pending a separate provenance/legal review. The
+[historical release provenance ledger](docs/kernel-provenance.md) distinguishes
+upstream source-asset metadata from unverified archive contents and inherited
+Caskel Git tags.
 
 See [upstream policy](UPSTREAM.md),
 [Nix packaging](nix/README.md),
