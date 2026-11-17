@@ -148,7 +148,7 @@ jobs:
           # A named volume must preserve bytes after the daemon restarts,
           # and the content must be readable by a new container instance.
           sudo "$BIN" run --rm --network none -v caskel-ci-storage:/state alpine:3.21 \
-            sh -c 'printf "persisted\\n" > /state/marker'
+            sh -c 'echo persisted > /state/marker'
           sudo systemctl restart caskel.service
           sudo systemctl is-active --quiet caskel.service
           sudo "$BIN" run --rm --network none -v caskel-ci-storage:/state alpine:3.21 \
@@ -157,7 +157,7 @@ jobs:
           # Read-only bind mounts must allow host-file reads and reject writes
           # both from inside the container and on the original host path.
           bind_dir=$(mktemp -d)
-          printf 'readonly-ok\\n' > "$bind_dir/marker"
+          echo readonly-ok > "$bind_dir/marker"
           sudo "$BIN" run --rm --network none -v "$bind_dir:/proof:ro" alpine:3.21 \
             sh -c 'grep -qx readonly-ok /proof/marker && ! touch /proof/unexpected'
           test ! -e "$bind_dir/unexpected"
