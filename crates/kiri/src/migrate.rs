@@ -110,6 +110,7 @@ fn ensure_docker_engine(version: &Value) -> io::Result<()> {
     // their Docker-compatible Version field looks like Docker itself.
     let vendor = version["Platform"]["Name"].as_str().unwrap_or_default();
     let ours = version.get("KiriVersion").is_some()
+        || version.get("CaskelVersion").is_some()
         || ["kiri", "caskel"].iter().any(|n| vendor.eq_ignore_ascii_case(n))
         || version["Components"].as_array().is_some_and(|components|
             components.iter().any(|c| ["kiri", "caskel"].iter().any(|n|
@@ -309,6 +310,8 @@ mod tests {
         assert!(ensure_docker_engine(&legacy).is_err());
         let renamed = serde_json::json!({"Platform": {"Name": "Caskel"}});
         assert!(ensure_docker_engine(&renamed).is_err());
+        let version_only = serde_json::json!({"Version": "27.5.1", "CaskelVersion": "0.2.1"});
+        assert!(ensure_docker_engine(&version_only).is_err());
         let component = serde_json::json!({"Components": [{"Name": "Kiri", "Version": "0.2.1"}]});
         assert!(ensure_docker_engine(&component).is_err());
     }
