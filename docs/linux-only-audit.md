@@ -142,3 +142,37 @@ interfaces, not Caskel's public marketing name.
   [the branding ledger](branding-compatibility.md).
 - No actual running host service or Docker installation was changed during
   these repository-only branding patches.
+
+## C4 follow-up: Nix source-input boundary (November 17, 2026)
+
+Reviewed the repository tree and the supported build entrypoints:
+
+- `flake.nix` exposes native `x86_64-linux` and calls `nix/package.nix`.
+  That derivation builds `caskel` and `caskel-init` with Cargo and installs
+  the isolated systemd unit; `cargo xtask linux` delegates to this flake.
+  There is **no guest-kernel compiler, fetch or image-install step** in these
+  supported entrypoints.
+- `guest/kernel/build.sh` is specifically an old Apple-Silicon/Intel-Mac
+  guest-kernel builder (arm64 `Image` or x86_64 `bzImage`), not a Linux-host
+  runtime dependency. `scripts/ci/kernel-source.sh`, configuration files,
+  patches and `guest/kernel/SOURCE_OFFER.md` are **retained** for historical
+  GPL corresponding-source provenance. The `NOTICE` generator still includes
+  the historical source offer. Do not silently remove or rewrite that offer.
+- `packaging/linux/` and `contrib/linux/` are absent from the current
+  source tree. `packaging/README.md` correctly documents Nix as the
+  supported, opt-in installation route.
+- `tests/kernel-features.sh` is a **host kernel** feature-probe script,
+  unrelated to the obsolete guest-kernel build pipeline; keep it.
+- The Nix `src` now composes `lib.cleanSource` with a filter excluding only
+  the top-level `guest/` tree from the **build input**, without deleting it
+  from Git or altering historical materials. The package `preConfigure`
+  checks both that the guest tree is absent and that the Linux agent transport
+  is present. CI must compile the package and run agent/runtime tests before
+  this isolation is considered verified.
+
+This is a **technical build-input audit, not a legal release-by-release GPL
+provenance opinion**. No Caskel release bundles a guest kernel through the
+documented Nix package; other distribution channels or prior upstream
+releases may have independent obligations. Do not mark C4 entirely complete
+until historical source obligations and remaining stale release references
+have been explicitly resolved.
