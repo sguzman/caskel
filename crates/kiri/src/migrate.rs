@@ -25,6 +25,10 @@ fn strings(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_owned)).collect()
 }
 
+fn nonempty_array(v: &Value) -> bool {
+    v.as_array().is_some_and(|values| !values.is_empty())
+}
+
 fn array<'a>(v: &'a Value, subject: &str) -> io::Result<&'a Vec<Value>> {
     v.as_array().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData,
         format!("Docker {subject} did not return an array")))
@@ -356,6 +360,15 @@ fn discover(socket: &Path) -> io::Result<Value> {
             "compose_project": project,
             "restart_policy": string(&detail["HostConfig"]["RestartPolicy"], "Name"),
             "network_mode": string(&detail["HostConfig"], "NetworkMode"),
+            // Report only whether explicit DNS/hosts overrides are present.
+            // Resolver addresses, search domains and host aliases may be
+            // private, so never include their values in the inventory.
+            "dns_customizations": {
+                "custom_resolvers": nonempty_array(&detail["HostConfig"]["Dns"]),
+                "search_domains": nonempty_array(&detail["HostConfig"]["DnsSearch"]),
+                "dns_options": nonempty_array(&detail["HostConfig"]["DnsOptions"]),
+                "extra_hosts": nonempty_array(&detail["HostConfig"]["ExtraHosts"])
+            },
             "healthcheck_configured": detail["Config"]["Healthcheck"].is_object(),
             "security": {
                 "privileged": detail["HostConfig"]["Privileged"] == true,
@@ -619,7 +632,12 @@ mod tests {
                         "com.docker.compose.project": "demo", "api-token": "DO_NOT_EXPOSE"
                     }},
                     "Mounts": [{"Type": "volume", "Source": "/var/lib/docker/volumes/db-data", "Destination": "/data", "RW": true}],
-                    "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}, "PortBindings": {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "15432"}]}},
+                    "HostConfig": {
+                        "RestartPolicy": {"Name": "unless-stopped"},
+                        "PortBindings": {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "15432"}]},
+                        "Dns": ["192.0.2.53"], "DnsSearch": ["private.example"],
+                        "DnsOptions": ["ndots:2"], "ExtraHosts": ["secret.internal:192.0.2.54"]
+                    },
                     "NetworkSettings": {"Networks": {"project_net": {}}}
                 })),
             ];
@@ -639,6 +657,10 @@ mod tests {
         assert_eq!(inventory["compose_projects"][0], "demo");
         assert_eq!(inventory["containers"][0]["name"], "database");
         assert_eq!(inventory["containers"][0]["restart_policy"], "unless-stopped");
+        assert_eq!(inventory["containers"][0]["dns_customizations"], json!({
+            "custom_resolvers": true, "search_domains": true,
+            "dns_options": true, "extra_hosts": true
+        }));
         assert_eq!(inventory["containers"][0]["published_ports"][0]["host_port"], 15432);
         assert_eq!(inventory["containers"][0]["configured_port_bindings"][0]["hosts"][0]["host_port"], "15432");
         assert_eq!(inventory["containers"][0]["networks"][0], "project_net");
@@ -646,8 +668,10 @@ mod tests {
         assert_eq!(inventory["images"][0]["tags"][0], "postgres:16");
         assert_eq!(inventory["volumes"][0]["name"], "db-data");
         assert_eq!(inventory["networks"][0]["name"], "project_net");
-        assert!(!inventory.to_string().contains("DO_NOT_EXPOSE"),
-            "container environment and arbitrary label values are private");
+        let redacted = inventory.to_string();
+        for secret in ["DO_NOT_EXPOSE", "192.0.2.53", "private.example", "ndots:2", "secret.internal"] {
+            assert!(!redacted.contains(secret), "redacted Docker DNS, env and labels must not leak");
+        }
         handle.join().unwrap();
         std::fs::remove_file(path).unwrap();
     }

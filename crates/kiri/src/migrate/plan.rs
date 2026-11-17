@@ -259,6 +259,11 @@ fn findings(container: &Value) -> Vec<&'static str> {
     {
         notes.insert("privileged_capabilities_or_devices_require_security_review");
     }
+    if container["dns_customizations"].as_object().is_some_and(|values|
+        values.values().any(|value| value.as_bool() == Some(true)))
+    {
+        notes.insert("explicit_dns_or_extra_hosts_requires_resolution_review");
+    }
     if container["healthcheck_configured"] == true {
         notes.insert("replicate_and_validate_original_healthcheck");
     }
@@ -309,6 +314,7 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>, listeners:
             "source_mount_count": c["mounts"].as_array().map_or(0, Vec::len),
             "source_port_binding_count": c["configured_port_bindings"].as_array().map_or(0, Vec::len),
             "source_networks": strings(&c["networks"]),
+            "source_dns_customizations": c["dns_customizations"],
             "status": "blocked_pending_manual_validation",
             "findings": findings(c),
         }));
@@ -426,6 +432,32 @@ mod tests {
         source["containers"][0]["labels"] = json!({"token": "SENSITIVE-SECRET"});
         let report = preview(&source).unwrap().to_string();
         assert!(!report.contains("SENSITIVE-SECRET"));
+    }
+
+    #[test]
+    fn redacted_source_dns_overrides_require_manual_resolution_review() {
+        let mut source = fixture();
+        source["containers"][0]["dns_customizations"] = json!({
+            "custom_resolvers": true,
+            "search_domains": false,
+            "dns_options": true,
+            "extra_hosts": true
+        });
+        // Even if a fixture contains unexpected source secrets, a dry-run
+        // does not copy arbitrary hostnames or resolver values.
+        source["containers"][0]["HostConfig"] = json!({
+            "Dns": ["SENSITIVE-RESOLVER"], "ExtraHosts": ["SENSITIVE-HOST"]
+        });
+        let report = preview(&source).unwrap();
+        let db = report["workloads"].as_array().unwrap().iter()
+            .find(|c| c["name"] == "db").unwrap();
+        assert_eq!(db["source_dns_customizations"]["custom_resolvers"], true);
+        assert!(db["findings"].as_array().unwrap().iter()
+            .any(|x| x == "explicit_dns_or_extra_hosts_requires_resolution_review"));
+        assert_eq!(report["ready_to_apply"], false);
+        assert!(!report.to_string().contains("SENSITIVE-RESOLVER"));
+        assert!(!report.to_string().contains("SENSITIVE-HOST"));
+        assert_eq!(preview(&source).unwrap(), report);
     }
 
     #[test]
