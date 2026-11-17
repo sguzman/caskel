@@ -651,7 +651,19 @@ fn restart_engine_now() {
 
 /// Whether the feed has a newer release, and one already staged; the
 /// window's check and the 6-hourly one (recheck.rs).
-fn feed_check(manual: bool) {    // Kiri Dev is rebuilt from source, never updated from the feed, unless
+fn feed_check(manual: bool) {
+    // Caskel's Linux release channel is a pinned Nix profile, not the
+    // inherited Kiri release feed. Never present upstream .deb/.rpm updates
+    // as Caskel releases or make a network request for them.
+    if cfg!(target_os = "linux") {
+        if manual {
+            emit(notice("ok", "Caskel updates are managed through its pinned Nix profile; the Linux window has no release feed or in-app installer."));
+        }
+        update_state("nix", None, None);
+        return;
+    }
+
+    // Kiri Dev is rebuilt from source, never updated from the feed, unless
     // KIRI_UPDATE_URL names a test feed (to try the update card and What's new).
     if crate::flavor::dev() && std::env::var_os("KIRI_UPDATE_URL").is_none() {
         if manual {
