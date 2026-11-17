@@ -43,6 +43,29 @@ t("Linux offers no Share or cloud report-upload controls", () => {
   reportDialog("send");
   if (document.querySelector("#rp")) throw new Error("cloud report dialog opened on Linux");
 });
+t("Linux Resources cannot restart a VM or rewrite host limits", () => {
+  const before = ui.res;
+  try {
+    ui.res = { cpus: 2, memory_mib: 8192, max_cpus: 16, max_memory_mib: 65536,
+               running_cpus: 2, running_memory_mib: 8192, awake: true, overridden: false };
+    const html = resourcesPane();
+    if (!html.includes(tr("(read-only)")) || !html.includes(tr("CPUs")) || !html.includes(tr("Memory")))
+      throw new Error("Linux read-only resource summary missing");
+    if (html.includes("data-saveres") || html.includes("data-restartvm") ||
+        html.includes("res-cpus") || html.includes("res-mem") || html.includes("VM"))
+      throw new Error("Inherited editable VM resource controls are present");
+  } finally { ui.res = before; }
+});
+t("Linux Network pane must not claim container traffic leaves through macOS", () => {
+  const oldProxy = ui.proxy, oldDraft = ui.pxDraft;
+  try {
+    ui.proxy = { settings: { mode: "none" },
+                 effective: { http: "", https: "", no_proxy: [], pac: false } };
+    ui.pxDraft = { mode: "none", containers: false };
+    const html = networkPane();
+    if (html.includes("macOS") || html.includes("WSL")) throw new Error("wrong host network guidance");
+  } finally { ui.proxy = oldProxy; ui.pxDraft = oldDraft; }
+});
 t("Linux save report description is local and never advertises Finder", () => {
   reportDialog("save");
   try {

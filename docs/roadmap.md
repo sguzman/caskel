@@ -47,7 +47,8 @@ excluded cloud account, sharing/tunnels, and diagnostic uploads from Caskel:
 verify the Linux UI removes these controls, CLI rejects them, and outbound
 Share transport is blocked regardless of legacy opt-in or saved tokens. Real Linux GTK
 desktop acceptance remains pending, distinct from headless language/browser
-checks and a compile-only GTK check. Follow
+checks and a compile-only GTK check. The Linux Resources GUI must not expose
+inherited VM restart actions or misleading macOS networking descriptions. Follow
 [the native GTK acceptance procedure](gtk-desktop-acceptance.md). Keep
 historical Kiri copyright attribution, certificate/storage identities and
 compatibility APIs until safe migration.

@@ -64,14 +64,17 @@ evidence of a complete GUI acceptance session.
    cloud recipient, upload, auto-send or send-crash controls.
 5. Inspect the **local save** report dialog without writing a report.
    No macOS Finder or guaranteed Desktop path should be advertised.
-6. The Share navigation entry is absent on Linux. An old configured cloud
+6. Settings → Resources shows configured CPU and memory values read-only, and
+   does not offer VM restarts or resource-save controls. The Network pane
+   must not claim Linux container traffic leaves through macOS.
+7. The Share navigation entry is absent on Linux. An old configured cloud
    token or `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1` cannot override the
    networking prohibition; check with source/CLI tests, not live uploads.
-7. If practical, switch the UI language to Spanish, then an RTL locale
+8. If practical, switch the UI language to Spanish, then an RTL locale
    (Arabic/Persian/Central Kurdish) and a CJK locale. Ensure local report
    wording stays readable and does not fall back to English. Language changes
    write a local UI preference.
-8. Record build output, compositor/window behavior, screenshots (with no
+9. Record build output, compositor/window behavior, screenshots (with no
    hostnames, tokens, credentials or private container details), and any
    failed steps. Do not mark them passed without observing them.
 
