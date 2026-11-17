@@ -107,8 +107,9 @@ The optional GTK window now loads Caskel's original
 desktop's generic application icon as a fallback; its application
 identifier is `caskel`. The source-level UI/About/logo replacement
 was reviewed in branding PRs #22, #25, #28 and #31 and gated by the
-optional GTK compilation check in #32. Real-desktop GUI acceptance is
-still pending. The Apache-2.0 LICENSE/NOTICE and GPL kernel sources
+optional GTK compilation check in #32. Real-desktop GUI acceptance was
+recorded on 2026-11-17 with explicit verification limitations; see
+[the acceptance record](gtk-desktop-acceptance.md#real-desktop-acceptance-record--2026-11-17). The Apache-2.0 LICENSE/NOTICE and GPL kernel sources
 were preserved.
 
 ## Visible Linux UI translation identity
