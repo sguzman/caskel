@@ -432,11 +432,11 @@ pub fn cli(args: &[String]) -> io::Result<()> {
     let s = p.status(other);
     let builder = &p.builder;
     match (s["with"].as_str(), other) {
-        (Some("kiri"), _) if !p.ready() => println!("docker build builds on Kiri once its builder `{builder}` is made (the window or `kiri setup` makes it while Kiri runs)"),
-        (Some("kiri"), Some(o)) => println!("docker build and docker compose build run on Kiri, whatever docker context is in use; the images are in Kiri, not {o}. `kiri build-with docker` switches back"),
-        (Some("kiri"), None) => println!("docker build and docker compose build run on Kiri (builder `{builder}`)"),
+        (Some("kiri"), _) if !p.ready() => println!("docker build targets Caskel once its builder `{builder}` is ready"),
+        (Some("kiri"), Some(o)) => println!("docker build and docker compose build run on Caskel, whatever docker context is in use; the images are in Caskel, not {o}. `caskel build-with docker` switches back"),
+        (Some("kiri"), None) => println!("docker build and docker compose build run on Caskel (builder `{builder}`)"),
         (_, o) => println!(
-            "docker build follows docker's context{}: on Kiri when docker uses Kiri. `kiri build` always builds on Kiri; `kiri build-with kiri` sends every build to Kiri",
+            "docker build follows docker's context{}: on Caskel when docker uses Caskel. `caskel build` always builds on Caskel; `caskel build-with caskel` sends every build to Caskel",
             o.map(|o| format!(" ({o}'s builds stay {o}'s)")).unwrap_or_default()
         ),
     }
