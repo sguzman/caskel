@@ -2544,7 +2544,7 @@ const OS = WIN ? "Windows" : LINUX ? "Linux" : "macOS", HOST = WIN ? "PC" : LINU
 // What runs the containers: a Linux VM on the Mac and Windows; on Linux, the engine itself.
 const VM = LINUX ? "Engine" : "Linux VM";
 /* Whether Share is in this build: the status event says (Kiri Dev on the Mac, every Kiri on Windows). */
-const shareOn = () => !!(ui.status?.share ?? ui.status?.dev);
+const shareOn = () => !LINUX && !!(ui.status?.share ?? ui.status?.dev);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 const ui = { running: new Set(), launched: new Map(), runWatch: new Map(), need: null, probed: new Map(), probing: new Set(), why: new Map(), startErr: {}, fixed: null, openTab: null, listening: new Map(), starting: new Map(), scans: new Map(), scanf: { sev: "", fix: false, own: false }, view: "containers", vm: "stopped", containers: [], images: [], volumes: [], networks: [], sort: { images: { key: "pulled", desc: true } }, filter: "", suffix: "kiri.localhost", collapsed: new Set(), res: null, resDraft: {}, proxy: null, pxDraft: {}, rports: null, rpDraft: {}, rpAt: 0,
@@ -6456,19 +6456,19 @@ function diagPane() {
       <button class="car" aria-label="${open ? tr("Hide the crash report") : tr("Show the crash report")}">${dgIcon("caret")}</button>
       <span class="when">${esc(dgWhen(c.time))}</span><span><span class="dg-part">${(DG_PART[c.part] && tr(DG_PART[c.part])) || esc(c.part)}</span></span>
       <span class="first" title="${esc(c.location ? `${c.message}\n${c.location}` : c.message || "")}">${esc(c.message || tr("(no message)"))}</span>
-      <span class="st">${c.sent ? `<span class="pill sent">${tr("Sent")}</span>${c.id ? `<span class="mono">${esc(c.id)}</span>${copyBtn(c.id, tr("report ID"))}` : ""}`
+      <span class="st">${LINUX ? "" : c.sent ? `<span class="pill sent">${tr("Sent")}</span>${c.id ? `<span class="mono">${esc(c.id)}</span>${copyBtn(c.id, tr("report ID"))}` : ""}`
         : busy ? `<span class="pill">${tr("Sending…")}</span>` : `<span class="pill">${tr("Not sent")}</span>${btn(tr("Send"), `data-crashsend="${esc(c.name)}"`)}`}</span>
     </div>${open ? `<pre class="dg-stack">${esc(c.text || "")}</pre>` : ""}`;
   };
   const crashes = dg.crashes == null ? `<div class="none">${tr("Looking for crash reports…")}</div>` : dg.crashes.length ? dg.crashes.map(crash).join("") : `<div class="none">${tr("No crashes. Kiri keeps a report here if one of its parts ever stops unexpectedly.")}</div>`;
   return `<div class="pane diag"><h3>${tr("Diagnostics")}</h3>
-    <div class="pref"><span class="t">${tr("Send crash reports automatically")}</span>
+    ${LINUX ? "" : `<div class="pref"><span class="t">${tr("Send crash reports automatically")}</span>
       <span class="d">${LINUX ? tr("Kiri Cloud is operated by upstream, not Caskel. Uploading a diagnostic report requires CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1. Review the redacted report before sending.") : tr("When part of Kiri crashes, the stack trace and the last 200 log lines before it go to Kiri Cloud, with Kiri's and the system's versions, the computer's model and a random ID for this install. Never your Kiri Cloud account, and nothing from inside your containers. Your home folder, image and container names, tokens and passwords are taken out.")}</span>
-      <div class="seg" role="group" aria-label="${tr("Send crash reports automatically")}"><button data-dgauto="0" aria-pressed="${prefs.crashReports !== true}">${tr("Off")}</button><button data-dgauto="1" aria-pressed="${prefs.crashReports === true}">${tr("On")}</button></div></div>
+      <div class="seg" role="group" aria-label="${tr("Send crash reports automatically")}"><button data-dgauto="0" aria-pressed="${prefs.crashReports !== true}">${tr("Off")}</button><button data-dgauto="1" aria-pressed="${prefs.crashReports === true}">${tr("On")}</button></div></div>`}
     <div class="pref"><span class="t">${tr("Diagnostics report")}</span>
       <span class="d">${tr("Recent logs, crash reports and versions in one redacted file, for when something goes wrong.")}</span>
-      <div class="dg-acts"><button class="btn sm" data-dgreport="save">${tr("Create report…")}</button><button class="btn sm" data-dgreport="send">${dgIcon("send")}${LINUX ? tr("Send to Kiri Cloud") : tr("Send to Kiri")}</button></div>
-      ${dg.sent ? `<div class="dg-result">${dgIcon("checkcircle")}<span>${LINUX ? tr("Sent to upstream Kiri Cloud (not Caskel): {id}", { id: `<span class="mono">${esc(dg.sent)}</span>` }) : tr("Sent. Quote {id} if you write to us.", { id: `<span class="mono">${esc(dg.sent)}</span>` })}</span>${copyBtn(dg.sent, tr("report ID"))}</div>` : ""}</div>
+      <div class="dg-acts"><button class="btn sm" data-dgreport="save">${tr("Create report…")}</button>${LINUX ? "" : `<button class="btn sm" data-dgreport="send">${dgIcon("send")}${tr("Send to Kiri")}</button>`}</div>
+      ${!LINUX && dg.sent ? `<div class="dg-result">${dgIcon("checkcircle")}<span>${LINUX ? tr("Sent to upstream Kiri Cloud (not Caskel): {id}", { id: `<span class="mono">${esc(dg.sent)}</span>` }) : tr("Sent. Quote {id} if you write to us.", { id: `<span class="mono">${esc(dg.sent)}</span>` })}</span>${copyBtn(dg.sent, tr("report ID"))}</div>` : ""}</div>
     <h4 class="ksub">${tr("Recent crashes")}</h4>
     <div class="dg-crashes">${crashes}</div>
     <h4 class="ksub">${tr("Logs")}</h4>
@@ -6501,10 +6501,10 @@ function diagDrawn() {
 function diagClick(t) {
   let el;
   if ((el = t("[data-dgpart]"))) { dg.part = el.dataset.dgpart; dg.lines = null; render(); dgFetch(); }
-  else if ((el = t("[data-dgauto]"))) setPref("crashReports", el.dataset.dgauto === "1");
-  else if ((el = t("[data-crashsend]"))) { dg.sending.add(el.dataset.crashsend); send("diagsendcrash", { name: el.dataset.crashsend }); render(); }
+  else if (!LINUX && (el = t("[data-dgauto]"))) setPref("crashReports", el.dataset.dgauto === "1");
+  else if (!LINUX && (el = t("[data-crashsend]"))) { dg.sending.add(el.dataset.crashsend); send("diagsendcrash", { name: el.dataset.crashsend }); render(); }
   else if (t("[data-dgop]")) { dg.op = ""; dg.lines = null; render(); dgFetch(); }
-  else if ((el = t("[data-dgreport]"))) reportDialog(el.dataset.dgreport);
+  else if ((el = t("[data-dgreport]"))) { if (!LINUX || el.dataset.dgreport === "save") reportDialog(el.dataset.dgreport); }
   else if (t("[data-dgfolder]")) send("diagfolder");
   else if ((el = t("[data-crashrow]")) && !t(".st button, .copy")) { const n = el.dataset.crashrow; dg.open.has(n) ? dg.open.delete(n) : dg.open.add(n); render(); }
   else return false;
@@ -6523,6 +6523,7 @@ function showDiag(op, crash) {
    what goes in first, the container list only when ticked. */
 let rp = null;
 function reportDialog(mode) {
+  if (LINUX && mode !== "save") return;
   rp = { mode, state: "", containers: false, id: "", error: "", close: () => close() };
   const scrim = document.createElement("div");
   scrim.className = "scrim"; scrim.id = "rp";
@@ -6570,6 +6571,7 @@ function crashCard() {
   const head = (ic, h, sub) => `<div class="updcard" role="dialog" aria-label="${esc(h)}">
     <div class="head"><div class="ic ${ic}">${dgIcon(ic === "ok" ? "checkcircle" : "warning")}</div><div class="txt"><h4>${esc(h)}</h4><div class="sub">${sub}</div></div>
     <button class="close" data-crashcard="close" aria-label="${tr("Close")}">${UPD_ICON.x}</button></div>`;
+  if (LINUX) return `${head("calm", title, whenLine)}<div class="row"><button class="lnk" data-crashcard="view">${tr("Details")}</button></div></div>`;
   if (c.id || c.state === "sent") return `${head("ok", tr("Report sent"), (LINUX ? tr("Sent to upstream Kiri Cloud (not Caskel): {id}", { id: `<span class="mono">${esc(c.id || "")}</span>` }) : tr("Quote {id} if you write to us about this crash.", { id: `<span class="mono">${esc(c.id)}</span>` })))}
     <div class="row">${btn(`${dgIcon("copy")}${tr("Copy ID")}`, 'data-crashcard="copy"')}<button class="lnk" data-crashcard="view">${tr("Details")}</button></div></div>`;
   if (c.sent || (c.crashReports && c.state !== "error")) return `${head("calm", title, (LINUX ? `${whenLine} ${c.sent ? tr("This report was sent to upstream Kiri Cloud.") : tr("Kiri Cloud is operated by upstream, not Caskel. Uploading a diagnostic report requires CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1. Review the redacted report before sending.")}` : tr("{who} stopped {when}.{more} Crash reports are sent automatically, so this one goes to Kiri too.", { who, when: esc(when), more })))}
@@ -6583,7 +6585,7 @@ function crashCardAction(a, el) {
   const c = ui.crash;
   if (!c) return;
   if (a === "close") c.hidden = true;
-  else if (a === "send") { if (c.always) setPref("crashReports", true); Object.assign(c, { state: "busy", error: "" }); send("diagsendcrash", { name: c.name }); }
+  else if (a === "send" && !LINUX) { if (c.always) setPref("crashReports", true); Object.assign(c, { state: "busy", error: "" }); send("diagsendcrash", { name: c.name }); }
   else if (a === "copy") { send("copy", { name: c.id }); copiedBtn(el); }
   else if (a === "view") { c.hidden = true; showDiag("", c.name); }
   renderUpdate();

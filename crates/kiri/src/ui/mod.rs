@@ -473,6 +473,7 @@ fn trf(en: &str, vars: &[(&str, &dyn std::fmt::Display)]) -> String {
 }
 
 fn set_pref(name: &str, value: serde_json::Value) {
+    if name == "crashReports" { return; }
     if !matches!(name, "font" | "mono" | "scale" | "termH" | "termFs" | "termFont" | "domainsAsked" | "theme" | "accent" | "importSeen" | "updateAuto" | "updateSkip" | "updateSnoozeUntil" | "columnWidths" | "crashReports" | "ctxSnooze" | "ctxBack" | "logSize" | "starAsked" | "setupSkip" | "lang" | "langAsked") {
         return;
     }
@@ -784,7 +785,7 @@ fn status_event() -> String {
     // the setup checklist says, not "Docker's default engine".
     #[cfg(target_os = "linux")]
     let context = if context.as_deref().is_none_or(|c| c == "default") && linux::onboarding::docker_uses_kiri() { Some(crate::flavor::CONTEXT.get().to_owned()) } else { context };
-    serde_json::json!({"type": "status", "version": env!("CARGO_PKG_VERSION"), "dev": crate::flavor::dev(), "share": true, "app": crate::flavor::APP.get(), "ours": crate::flavor::CONTEXT.get(), "context": context.unwrap_or_else(|| "default".into())}).to_string()
+    serde_json::json!({"type": "status", "version": env!("CARGO_PKG_VERSION"), "dev": crate::flavor::dev(), "share": false, "app": crate::flavor::APP.get(), "ours": crate::flavor::CONTEXT.get(), "context": context.unwrap_or_else(|| "default".into())}).to_string()
 }
 
 /// Which names containers answer at now.
@@ -1369,18 +1370,12 @@ mod tests {
         // Check for updates automatically stays off across launches.
         super::set_pref("updateAuto", false.into());
         assert_eq!(super::prefs()["updateAuto"], false);
-        // Crash reports remember when they were turned on, and only the
-        // setting itself can say so.
+        // Linux refuses to opt in to automatic uploads, including old settings.
         super::set_pref("crashReportsSince", 1.into());
-        assert_eq!(super::prefs().get("crashReportsSince"), None);
         super::set_pref("crashReports", true.into());
-        let since = super::prefs()["crashReportsSince"].as_u64().unwrap();
-        assert!(since > 1);
-        std::fs::write(dir.join("ui.json"), super::prefs().to_string().replace(&since.to_string(), "5")).unwrap();
-        super::set_pref("crashReports", true.into());
-        assert_eq!(super::prefs()["crashReportsSince"], 5, "already on: its time stays");
-        super::set_pref("crashReports", false.into());
         assert_eq!(super::prefs().get("crashReportsSince"), None);
+        assert_eq!(super::prefs().get("crashReports"), None);
+        assert!(!crate::diag::report::crash_reports_on());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1613,7 +1608,16 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             }
             Ok(())
         }
-        // Share: public links for a port or container, and the Share account.
+        // Reject cloud actions even if stale HTML or a crafted UI event sends one.
+        "shares" | "share" | "k8sshare" | "shareusage" | "sharetraffic"
+        | "sharetunnels" | "sharestop" | "sharebrowse" | "unshare"
+        | "shareopen" | "sharelogin" | "sharecancel" | "sharelogout"
+            if cfg!(target_os = "linux") =>
+        {
+            emit(notice("error", "Cloud sharing is disabled in Caskel."));
+            Ok(())
+        }
+        // Inherited cloud implementation, unreachable in the Linux window.
         "shares" => {
             sharing::list();
             Ok(())
@@ -2010,6 +2014,10 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             });
             Ok(())
         }
+        "diagsend" | "diagsendcrash" if cfg!(target_os = "linux") => {
+            emit(notice("error", "Caskel diagnostics are local-only."));
+            Ok(())
+        }
         "diagsend" => {
             let containers = msg.value["containers"] == true;
             std::thread::spawn(move || {
@@ -2080,7 +2088,7 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
                     emit(crash.to_string());
                 }
             });
-            diag::report::spawn_crash_sender(Duration::from_secs(5), None);
+            // No automatic crash-report sender: reports remain local to Caskel.
             // A newer release, checked when the window opens and every 6
             // hours after (recheck.rs), quietly; one already downloaded; an
             // engine still on an older build.

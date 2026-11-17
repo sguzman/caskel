@@ -75,9 +75,7 @@ usage: caskel COMMAND          docker's commands, on Caskel: caskel run, ps, exe
        caskel ui [--start] [--view containers|images|volumes|networks]
        caskel build-with [docker|caskel]   which builder docker build uses
        caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [-n N]
-       caskel diag report [--out PATH] [--send]   (a file to send us, tokens taken out)
-       caskel PORT [NAME]           share a local port on the internet (same as caskel share PORT)
-       caskel share PORT|CONTAINER [--name N] | share login | logout | status
+       caskel diag report [--out PATH]   save a redacted local diagnostics file
        caskel k8s start [--use] | stop | status | delete | set [--lan on|off] [--tls-san NAME,…] [--port N]
        caskel usb [list] | attach DEVICE | detach DEVICE   USB devices for containers, beta
        caskel machine create NAME [--distro D] | list | shell NAME | stop | delete NAME
@@ -117,11 +115,10 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         },
-        #[cfg(any(unix, windows))]
-        Some("share") => share::run(&args[1..]),
-        // `kiri 3000`: share a port straight away.
-        #[cfg(any(unix, windows))]
-        Some(a) if share::is_shorthand(a) => share::run(&args),
+        // The inherited cloud tunnel command is deliberately unavailable.
+        Some("share") => Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported, "Caskel does not provide cloud sharing.",
+        )),
         #[cfg(unix)]
         Some("build-with") => buildwith::cli(&args[1..]),
         #[cfg(unix)]

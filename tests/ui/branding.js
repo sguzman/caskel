@@ -33,24 +33,15 @@ t("diagnostic command labels say Caskel without changing translation keys", () =
   const s = brandedCliLabel(tr("A kiri command"));
   if (!/Caskel/.test(s) || /\bkiri\b/i.test(s)) throw new Error(s);
 });
-t("Linux diagnostics is localized, names upstream Kiri Cloud and requires opt-in", () => {
-  const key = "Kiri Cloud is operated by upstream, not Caskel. Uploading a diagnostic report requires CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1. Review the redacted report before sending.";
-  const disclosure = tr(key);
-  if (!DICT[key] || disclosure === key) throw new Error("missing Spanish localization");
-  if (!disclosure.includes("Kiri Cloud") || !disclosure.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
-    throw new Error("provider or opt-in lost in translation");
+t("Linux offers no Share or cloud report-upload controls", () => {
   const pane = diagPane();
-  if (!pane.includes(disclosure) || !pane.includes(tr("Send to Kiri Cloud")))
-    throw new Error("localized disclosure or external recipient button missing");
-  if (pane.includes("Send to Caskel")) throw new Error("incorrect report recipient");
+  if (pane.includes("data-dgauto") || pane.includes('data-dgreport="send"') || pane.includes("data-crashsend"))
+    throw new Error("cloud controls remain in Diagnostics");
+  if (!pane.includes('data-dgreport="save"')) throw new Error("local report export missing");
+  if (shareOn()) throw new Error("cloud Share is enabled on Linux");
+  if (document.querySelector('nav [data-view="share"]') && getComputedStyle(document.querySelector('nav [data-view="share"]')).display !== "none") throw new Error("Share navigation is visible");
   reportDialog("send");
-  try {
-    const text = document.querySelector("#rp")?.textContent || "";
-    if (!text.includes(disclosure)) throw new Error("localized report recipient disclosure missing");
-    if (!text.includes(tr("Send to Kiri Cloud"))) throw new Error("report dialog recipient was renamed");
-  } finally {
-    document.querySelector("#rp [data-close]")?.click();
-  }
+  if (document.querySelector("#rp")) throw new Error("cloud report dialog opened on Linux");
 });
 t("Linux save report description is local and never advertises Finder", () => {
   reportDialog("save");
@@ -65,14 +56,14 @@ t("Linux save report description is local and never advertises Finder", () => {
     document.querySelector("#rp [data-close]")?.click();
   }
 });
-t("Linux crash card never promises uploads without the external-cloud opt-in", () => {
+t("Linux crash card is local-only", () => {
   const before = ui.crash;
   try {
     ui.crash = { part: "cli", time: "2026-11-16T19:00:00Z", count: 1,
                  crashReports: true, sent: false, hidden: false };
     const html = crashCard();
-    if (!html.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1") || !html.includes("Caskel"))
-      throw new Error("crash card has misleading legacy provider status");
+    if (html.includes("data-crashcard=\"send\"") || html.includes("Kiri Cloud") || !html.includes(tr("Details")))
+      throw new Error("crash card still offers upload");
   } finally {
     ui.crash = before;
   }
