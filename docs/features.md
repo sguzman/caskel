@@ -48,10 +48,11 @@ Historical Kiri protocol paths remain compatible by design.
 
 ## Docker-to-Caskel migration
 
-The migration roadmap starts with a **read-only Docker inventory**, then a
-non-mutating plan and finally reversible cutovers, one service at a time.
-An inventory does not transfer images or persistent data. Nothing is
-migrated or stopped automatically.
+The **read-only Docker inventory** and a conservative **non-mutating dry-run
+preview** are implemented. The preview lists risks and manual validation
+requirements; it does not inspect target Caskel readiness or authorize cutover.
+Image transfer, persistent-data migration and reversible per-service cutovers
+remain unimplemented. Nothing is migrated or stopped automatically.
 
 Follow [the current roadmap](roadmap.md) for the precise verified score
 and [the migration plan](linux-migration-plan.md) for safety requirements.

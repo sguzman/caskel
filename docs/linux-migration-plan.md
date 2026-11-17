@@ -1,6 +1,6 @@
 # Linux Docker Engine → Caskel migration
 
-**Status: initial read-only inventory implemented. Planning and migration remain unimplemented.**
+**Status: read-only inventory and conservative dry-run preview implemented. Image/data transfer and cutovers remain unimplemented.**
 
 Upstream contains an importer at `crates/kiri/src/import.rs`, built
 around Docker Desktop and OrbStack contexts. That code is not exposed by
@@ -45,7 +45,34 @@ Caskel or the old Kiri engine, and does not change Docker's default context.
 The JSON inventory contains infrastructure names and host paths: keep it
 private. This is discovery only, not an application dependency graph.
 
-**Planned, not yet implemented:** `caskel migrate docker --dry-run`.
+Conservative, read-only cutover preview:
+
+```fish
+caskel migrate docker --dry-run
+```
+
+```fish
+caskel migrate docker --dry-run --json
+```
+
+The preview uses the same GET-only discovery path as `--list`. It annotates
+each workload with migration prerequisites: image availability/transfer,
+backup and restore, bind/volume ownership, security/device capabilities,
+custom network/DNS requirements, Compose dependencies, restart/health
+checks, and host-port rebinds. It flags *potential source-side* published
+port overlap, including stopped containers with configured bindings.
+
+**This is NOT a migration action, deployable execution plan, or compatibility
+certificate.** All workloads report `blocked_pending_manual_validation`.
+The target Caskel inventory, actual host-port occupancy, application-consistent
+data and rollback readiness have **not** been verified. The JSON lists
+proposed manual steps but cannot be applied; no `--apply` flag exists.
+Treat inventory and preview outputs as private infrastructure metadata.
+
+Still planned: inspect Caskel destination state, cross-check source and target
+network/IPAM/ports/storage compatibility, and construct fully verified
+per-service execution and rollback plans. No source or target is modified
+by a preview.
 
 ## Safety principles
 

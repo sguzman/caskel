@@ -184,8 +184,25 @@ jobs:
             echo 'refused to reject the destination Caskel socket' >&2
             exit 1
           fi
-          if sudo "$BIN" migrate docker --dry-run >/dev/null 2>&1; then
-            echo 'unsupported migration dry-run was accepted' >&2
+          sudo "$BIN" migrate docker --dry-run --json > "$RUNNER_TEMP/docker-preview.json"
+          python3 - "$RUNNER_TEMP/docker-preview.json" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              plan = json.load(f)
+          assert plan["mode"] == "read_only_dry_run"
+          assert plan["ready_to_apply"] is False
+          assert plan["target_caskel_inspected"] is False
+          assert plan["workload_count"] == len(plan["workloads"])
+          assert all(w["status"] == "blocked_pending_manual_validation" for w in plan["workloads"])
+          assert len(plan["proposed_manual_sequence"]) >= 7
+          PY
+          if sudo "$BIN" migrate docker --apply >/dev/null 2>&1; then
+            echo 'unsafe unsupported --apply operation accepted' >&2
+            exit 1
+          fi
+          if sudo "$BIN" migrate docker --list --dry-run >/dev/null 2>&1; then
+            echo 'mutually exclusive --list and --dry-run accepted' >&2
             exit 1
           fi
           test "$docker_all_before" = "$(docker ps -aq | sort)"

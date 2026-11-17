@@ -10,7 +10,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-const USAGE: &str = "usage: caskel migrate docker --list [--socket PATH] [--json]";
+mod plan;
+
+const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--json]";
 const DEFAULT_SOCKET: &str = "/var/run/docker.sock";
 const MAX_RESPONSE: u64 = 64 * 1024 * 1024;
 
@@ -108,6 +110,7 @@ fn ensure_docker_engine(version: &Value) -> io::Result<()> {
     // their Docker-compatible Version field looks like Docker itself.
     let vendor = version["Platform"]["Name"].as_str().unwrap_or_default();
     let ours = version.get("KiriVersion").is_some()
+        || version.get("CaskelVersion").is_some()
         || ["kiri", "caskel"].iter().any(|n| vendor.eq_ignore_ascii_case(n))
         || version["Components"].as_array().is_some_and(|components|
             components.iter().any(|c| ["kiri", "caskel"].iter().any(|n|
@@ -176,6 +179,14 @@ fn discover(socket: &Path) -> io::Result<Value> {
             "state": string(row, "State"),
             "compose_project": project,
             "restart_policy": string(&detail["HostConfig"]["RestartPolicy"], "Name"),
+            "network_mode": string(&detail["HostConfig"], "NetworkMode"),
+            "healthcheck_configured": detail["Config"]["Healthcheck"].is_object(),
+            "security": {
+                "privileged": detail["HostConfig"]["Privileged"] == true,
+                "extra_capabilities": detail["HostConfig"]["CapAdd"].as_array().is_some_and(|v| !v.is_empty()),
+                "devices": detail["HostConfig"]["Devices"].as_array().is_some_and(|v| !v.is_empty())
+                    || detail["HostConfig"]["DeviceRequests"].as_array().is_some_and(|v| !v.is_empty()),
+            },
             "label_keys": label_keys,
             "mounts": mounts,
             "published_ports": ports,
@@ -216,12 +227,14 @@ pub fn run(args: &[String]) -> io::Result<()> {
     }
     let mut socket = PathBuf::from(DEFAULT_SOCKET);
     let mut list = false;
+    let mut dry_run = false;
     let mut json_output = false;
     let mut changed_socket = false;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--list" if !list => list = true,
+            "--list" if !list && !dry_run => list = true,
+            "--dry-run" if !list && !dry_run => dry_run = true,
             "--json" if !json_output => json_output = true,
             "--socket" if !changed_socket => {
                 i += 1;
@@ -236,20 +249,34 @@ pub fn run(args: &[String]) -> io::Result<()> {
         }
         i += 1;
     }
-    if !list {
+    if !list && !dry_run {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
     }
     let socket = source_socket(&socket)?;
     let inventory = discover(&socket)?;
+    let result = if dry_run { plan::preview(&inventory)? } else { inventory };
     if json_output {
-        println!("{}", serde_json::to_string_pretty(&inventory).map_err(io::Error::other)?);
+        println!("{}", serde_json::to_string_pretty(&result).map_err(io::Error::other)?);
+    } else if dry_run {
+        println!("Caskel migration dry-run (READ ONLY): {}", socket.display());
+        println!("{} workloads; target engine has NOT been inspected.",
+            result["workload_count"].as_u64().unwrap_or_default());
+        println!("{} possible source-side host-port collisions.",
+            result["potential_source_port_reuse"].as_array().map_or(0, Vec::len));
+        for c in array(&result["workloads"], "preview workloads")? {
+            let safe = |s: &str| s.chars().filter(|c| !c.is_control()).take(48).collect::<String>();
+            println!("  {}: blocked pending manual checks ({} findings)",
+                safe(c["name"].as_str().unwrap_or("")),
+                c["findings"].as_array().map_or(0, Vec::len));
+        }
+        println!("No workload is approved to cut over. Use --json for risks, proposed checks and rollback sequence.");
     } else {
         println!("Docker Engine inventory (READ ONLY): {}", socket.display());
-        println!("Version: {}", inventory["docker_version"].as_str().unwrap_or("?"));
+        println!("Version: {}", result["docker_version"].as_str().unwrap_or("?"));
         for key in ["containers", "images", "volumes", "networks", "compose_projects"] {
-            println!("{}: {}", key, inventory[key].as_array().map_or(0, Vec::len));
+            println!("{}: {}", key, result[key].as_array().map_or(0, Vec::len));
         }
-        for c in array(&inventory["containers"], "inventory containers")? {
+        for c in array(&result["containers"], "inventory containers")? {
             let name = c["name"].as_str().unwrap_or("");
             let state = c["state"].as_str().unwrap_or("");
             let safe = |s: &str| s.chars().filter(|c| !c.is_control()).take(50).collect::<String>();
@@ -283,14 +310,22 @@ mod tests {
         assert!(ensure_docker_engine(&legacy).is_err());
         let renamed = serde_json::json!({"Platform": {"Name": "Caskel"}});
         assert!(ensure_docker_engine(&renamed).is_err());
+        let version_only = serde_json::json!({"Version": "27.5.1", "CaskelVersion": "0.2.1"});
+        assert!(ensure_docker_engine(&version_only).is_err());
         let component = serde_json::json!({"Components": [{"Name": "Kiri", "Version": "0.2.1"}]});
         assert!(ensure_docker_engine(&component).is_err());
     }
 
     #[test]
-    fn refuses_implicit_writes_and_unsupported_dry_runs() {
+    fn refuses_implicit_writes_and_unsupported_apply() {
         assert!(run(&["docker".into()]).is_err());
-        assert!(run(&["docker".into(), "--dry-run".into()]).is_err());
+        assert!(run(&["docker".into(), "--apply".into()]).is_err());
+        // A write request must be rejected even when combined with the
+        // otherwise valid read-only modes, before opening any Docker socket.
+        assert!(run(&["docker".into(), "--dry-run".into(), "--apply".into()]).is_err());
+        assert!(run(&["docker".into(), "--list".into(), "--apply".into()]).is_err());
+        assert!(run(&["docker".into(), "--dry-run".into(), "--socket".into(), "".into()]).is_err());
+        assert!(run(&["docker".into(), "--list".into(), "--dry-run".into()]).is_err());
         assert!(run(&["docker".into(), "--list".into(), "--bad".into()]).is_err());
     }
 

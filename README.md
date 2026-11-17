@@ -70,7 +70,7 @@ The [verified development roadmap](docs/roadmap.md) tracks full-lifecycle milest
 4. Selective upstream synchronization and tracked security updates.
 5. Gradual, recoverable migration of self-hosted workloads.
 
-**The native, read-only Docker inventory is implemented** as `caskel migrate docker --list [--json]`; the migration dry-run and cutover are **not** implemented. Caskel does not yet move services or storage.
+**Read-only Docker inventory and a conservative migration preview are implemented** as `caskel migrate docker --list [--json]` and `caskel migrate docker --dry-run [--json]`. The preview reports prerequisites and potential source-side conflicts, but does not inspect target readiness or approve any workload for cutover. Image transfer, persistent-data migration and service cutover remain unimplemented. Caskel does not move or stop existing Docker services.
 
 ## Origins and license
 
