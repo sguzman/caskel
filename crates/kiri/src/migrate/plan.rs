@@ -260,7 +260,7 @@ fn findings(container: &Value) -> Vec<&'static str> {
         notes.insert("privileged_capabilities_or_devices_require_security_review");
     }
     if container["dns_customizations"].as_object().is_some_and(|values|
-        values.values().any(|value| value == true))
+        values.values().any(|value| value.as_bool() == Some(true)))
     {
         notes.insert("explicit_dns_or_extra_hosts_requires_resolution_review");
     }
