@@ -83,6 +83,8 @@ caskel migrate docker --dry-run --target-socket /run/caskel/docker.sock --json
 The target must identify as Caskel and be a different Unix socket from
 Docker's. The command uses GET only, reports potential overlapping published
 host ports and IPAM IPv4/IPv6 CIDR ranges, and keeps every workload blocked.
+PRs #48 and #49 both passed Linux Nix/runtime, UI, CodeQL and performance
+checks; those checks are on disposable GitHub runners, not a production host.
 Network-name matches do not imply safe equivalence. Invalid/unavailable
 subnets cannot be treated as compatible. Never publish the JSON report.
 
