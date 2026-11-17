@@ -124,7 +124,8 @@ jobs:
           sudo systemctl start caskel.service
           # Keep the temporary non-Caskel host listener from surviving test failures.
           port_owner_pid=
-          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; sudo systemctl stop caskel.service || true' EXIT
+          udp_owner_pid=
+          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; if [ -n "$udp_owner_pid" ]; then kill "$udp_owner_pid" 2>/dev/null || true; fi; sudo systemctl stop caskel.service || true' EXIT
           sudo systemctl is-active --quiet caskel.service
           test -S /run/caskel/docker.sock
           BIN=/nix/var/nix/profiles/caskel/bin/caskel
@@ -309,6 +310,88 @@ jobs:
             echo 'Caskel left the recovered host listener open after container removal' >&2
             exit 1
           fi
+          # UDP coexistence regression: a host process owns the loopback
+          # datagram socket. Caskel must reject the conflict, preserve the
+          # original UDP service, and recover after the owner releases it.
+          udp_echo_code=$(cat <<'PY'
+          import socket
+          import sys
+
+          label = sys.argv[1].encode("ascii")
+          port = int(sys.argv[2])
+          address = sys.argv[3]
+          sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          sock.bind((address, port))
+          while True:
+              data, peer = sock.recvfrom(4096)
+              sock.sendto(label + data, peer)
+          PY
+          )
+          udp_probe() {
+            python3 - "$1" <<'PY'
+          import socket
+          import sys
+
+          expected = sys.argv[1].encode("ascii")
+          with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+              sock.settimeout(1)
+              sock.sendto(b"ping", ("127.0.0.1", 18767))
+              reply, _ = sock.recvfrom(4096)
+              assert reply == expected, (reply, expected)
+          PY
+          }
+          check_udp_probe() {
+            local expected=$1
+            for attempt in $(seq 1 12); do
+              if udp_probe "$expected" 2>/dev/null; then
+                return 0
+              fi
+              sleep 1
+            done
+            return 1
+          }
+          python3 -u -c "$udp_echo_code" 'owner:' 18767 127.0.0.1 >/dev/null 2>&1 &
+          udp_owner_pid=$!
+          if ! check_udp_probe 'owner:ping'; then
+            echo 'CI UDP fixture failed to bind or reply' >&2
+            exit 1
+          fi
+          if output=$(sudo "$BIN" run -d --name caskel-ci-udp-collision --network caskel-ci-dns \
+            -p 127.0.0.1:18767:19067/udp alpine:3.21 sleep 1d 2>&1); then
+            sudo "$BIN" rm -f caskel-ci-udp-collision || true
+            echo 'Caskel accepted an occupied UDP host port' >&2
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -Eqi 'port is already allocated|address already in use'
+          udp_probe 'owner:ping'
+          sudo "$BIN" rm -f caskel-ci-udp-collision >/dev/null 2>&1 || true
+          kill "$udp_owner_pid"
+          wait "$udp_owner_pid" || true
+          udp_owner_pid=
+          # This tests actual datagram forwarding and replies, not merely
+          # whether a UDP socket appears in the port listing.
+          sudo "$BIN" run -d --name caskel-ci-udp-echo --network caskel-ci-dns \
+            -p 127.0.0.1:18767:19067/udp python:3.13-alpine \
+            python3 -u -c "$udp_echo_code" 'caskel:' 19067 0.0.0.0
+          if ! check_udp_probe 'caskel:ping'; then
+            echo 'Caskel UDP loopback forwarding did not return the expected reply' >&2
+            sudo "$BIN" ps -a || true
+            sudo "$BIN" logs caskel-ci-udp-echo || true
+            sudo ss -lunp | grep -E '(:18767|State)' || true
+            sudo journalctl -u caskel.service -n 90 --no-pager || true
+            exit 1
+          fi
+          sudo "$BIN" rm -f caskel-ci-udp-echo
+          # Removal must free the socket for the original kind of owner.
+          python3 -u -c "$udp_echo_code" 'recovered:' 18767 127.0.0.1 >/dev/null 2>&1 &
+          udp_owner_pid=$!
+          if ! check_udp_probe 'recovered:ping'; then
+            echo 'Caskel did not release UDP host port after container removal' >&2
+            exit 1
+          fi
+          kill "$udp_owner_pid"
+          wait "$udp_owner_pid" || true
+          udp_owner_pid=
           test "$docker_containers_before_ports" = "$(docker ps -aq | sort)"
           sudo "$BIN" rm -f caskel-ci-dns-peer
           # Container removal must withdraw its DNS name, while a surviving
