@@ -30,15 +30,17 @@ nix build .#caskel
 ```
 
 ```fish
-ls -l result/bin/caskel result/bin/kiri-init result/lib/systemd/system/caskel.service
+ls -l result/bin/caskel result/bin/caskel-init result/bin/kiri-init result/lib/systemd/system/caskel.service
 ```
 
 ```fish
 cat result/lib/systemd/system/caskel.service
 ```
 
-The flake builds both the public CLI and the internal `kiri-init` agent.
-It packages the service unit but does **not** install or start it.
+The flake builds the public `caskel` CLI and canonical `caskel-init`
+Linux agent. The `kiri-init` executable is retained only as a compatibility
+symlink for legacy launch configurations. The flake packages the systemd
+unit but does **not** install or start it.
 
 ## Install into a distinct Nix profile
 
