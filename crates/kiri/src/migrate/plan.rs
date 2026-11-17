@@ -148,8 +148,10 @@ fn observed_source_port_occupancy(source: &[Value], observed: &[Listener]) -> Ve
             if lease.protocol != local.protocol || lease.port != local.port {
                 continue;
             }
-            let equal = lease.address.parse::<IpAddr>().ok().map(IpAddr::to_canonical)
-                == local.address.parse::<IpAddr>().ok().map(IpAddr::to_canonical);
+            let equal = match (lease.address.parse::<IpAddr>(), local.address.parse::<IpAddr>()) {
+                (Ok(a), Ok(b)) => a.to_canonical() == b.to_canonical(),
+                _ => false,
+            };
             if equal || wildcard(&lease.address) || wildcard(&local.address) {
                 matches.insert((lease.protocol.clone(), lease.port, lease.container.clone(),
                     lease.address.clone(), local.address.clone()));
