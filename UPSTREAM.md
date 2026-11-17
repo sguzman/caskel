@@ -8,7 +8,7 @@ we never automatically merge its `main` into ours.
 
 ## Local Git remotes
 
-Once the GitHub repository has been renamed to `sguzman/caskel`:
+For a checkout created before the Caskel fork was renamed, set the origin URL:
 
 ```fish
 git remote set-url origin https://github.com/sguzman/caskel.git
@@ -56,11 +56,16 @@ are deferred. Track accepted upstream commit IDs in sync PRs.
 
 ## Deliberately retained upstream internals
 
-For manageable future merges, the Cargo crate/package names `kiri`,
-`kiri-init`, internal symbols and existing `KIRI_*` configuration
-variables remain for now. Public Linux interfaces use `caskel`:
-the executable, Nix package/profile, systemd service, Unix socket, default
-local state/context and data store. This is a conscious staging decision.
+Cargo **package** names have been migrated to `caskel`, `caskel-init`,
+`caskel-image`, `caskel-proto`, `caskel-share-proto`, and
+`caskel-agent-transport`. Historical `crates/kiri*` **source directories**
+and some internal symbols remain to simplify selective upstream ports.
+The public Linux identity uses `caskel` for the CLI, Nix package/profile,
+systemd service, Unix socket, local context and data store. Canonical
+`CASKEL_*` environment variables take precedence; historical `KIRI_*`
+spellings and compatibility-sensitive API paths/labels remain supported
+until separately audited and safely migrated. This is a deliberate
+compatibility policy, not an assertion that Cargo packages retain old names.
 
 Keep original Apache-2.0 and NOTICE attribution. Do not reuse upstream's
 protected name/logo as the project's own brand.
