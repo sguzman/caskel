@@ -472,6 +472,10 @@ jobs:
           assert isinstance(report["networks"], list)
           assert isinstance(report["compose_projects"], list)
           assert report["docker_version"], report
+          for container in report["containers"]:
+              dns = container["dns_customizations"]
+              assert set(dns) == {"custom_resolvers", "search_domains", "dns_options", "extra_hosts"}
+              assert all(isinstance(value, bool) for value in dns.values())
           PY
           if sudo "$BIN" migrate docker --list --socket /run/caskel/docker.sock >/dev/null 2>&1; then
             echo 'refused to reject the destination Caskel socket' >&2
@@ -488,6 +492,7 @@ jobs:
           assert plan["target_caskel_inspected"] is False
           assert plan["workload_count"] == len(plan["workloads"])
           assert all(w["status"] == "blocked_pending_manual_validation" for w in plan["workloads"])
+          assert all(isinstance(w["source_dns_customizations"], dict) for w in plan["workloads"])
           assert len(plan["proposed_manual_sequence"]) >= 7
           assert plan["potential_source_target_port_overlap"] == []
           assert plan["potential_source_target_subnet_overlap"] == []
