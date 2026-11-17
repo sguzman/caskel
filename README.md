@@ -77,9 +77,12 @@ without changing either engine, use
 `caskel migrate docker --dry-run --target-socket /run/caskel/docker.sock`.
 This reads the target's container and network metadata using GET requests only
 and flags *potential* cross-engine host-port and IPv4/IPv6 subnet overlap.
-Without this explicit flag,
-the target is not inspected. This does not check arbitrary host processes,
-network/IPAM compatibility, backup integrity, or authorize a cutover.
+Without this explicit flag, the target is not inspected. An independent
+`--inspect-host-listeners` opt-in adds a read-only Linux `/proc/net`
+snapshot of TCP/UDP sockets matching configured Docker source ports.
+It reads only the CLI's own network namespace; it cannot identify port owners,
+inspect other namespaces, establish future availability, or authorize a cutover.
+Both flags are optional and can be combined with `--dry-run --json`.
 Treat the JSON output as private infrastructure metadata. Caskel does not move or stop existing Docker services.
 
 ## Origins and license
