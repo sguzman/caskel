@@ -10,9 +10,10 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+mod host_listeners;
 mod plan;
 
-const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--target-socket PATH] [--json]";
+const USAGE: &str = "usage: caskel migrate docker (--list | --dry-run) [--socket PATH] [--target-socket PATH] [--inspect-host-listeners] [--json]";
 const DEFAULT_SOCKET: &str = "/var/run/docker.sock";
 const MAX_RESPONSE: u64 = 64 * 1024 * 1024;
 
@@ -401,6 +402,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
     let mut requested_target: Option<PathBuf> = None;
     let mut list = false;
     let mut dry_run = false;
+    let mut inspect_host_listeners = false;
     let mut json_output = false;
     let mut changed_socket = false;
     let mut i = 1;
@@ -409,6 +411,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
             "--list" if !list && !dry_run => list = true,
             "--dry-run" if !list && !dry_run => dry_run = true,
             "--json" if !json_output => json_output = true,
+            "--inspect-host-listeners" if !inspect_host_listeners => inspect_host_listeners = true,
             "--socket" if !changed_socket => {
                 i += 1;
                 let s = args.get(i).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, USAGE))?;
@@ -430,16 +433,25 @@ pub fn run(args: &[String]) -> io::Result<()> {
         }
         i += 1;
     }
-    if (!list && !dry_run) || (list && requested_target.is_some()) {
+    if (!list && !dry_run) || (list && (requested_target.is_some() || inspect_host_listeners)) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
     }
     let socket = source_socket(&socket)?;
     let inventory = discover(&socket)?;
     let result = if dry_run {
-        if let Some(requested) = requested_target {
+        let destination = if let Some(requested) = requested_target {
             let target = target_socket(&requested, &socket)?;
-            let destination = discover_target(&target)?;
-            plan::preview_with_target(&inventory, &destination)?
+            Some(discover_target(&target)?)
+        } else {
+            None
+        };
+        if inspect_host_listeners {
+            // This reads /proc only in the CLI's own network namespace;
+            // it never attempts a bind or changes either engine.
+            let listeners = host_listeners::snapshot()?;
+            plan::preview_with_local_listeners(&inventory, destination.as_ref(), &listeners)?
+        } else if let Some(target) = destination.as_ref() {
+            plan::preview_with_target(&inventory, target)?
         } else {
             plan::preview(&inventory)?
         }
@@ -457,6 +469,10 @@ pub fn run(args: &[String]) -> io::Result<()> {
             result["potential_source_target_port_overlap"].as_array().map_or(0, Vec::len));
         println!("{} possible source-side host-port collisions.",
             result["potential_source_port_reuse"].as_array().map_or(0, Vec::len));
+        if result["local_host_listeners_inspected"] == true {
+            println!("{} observed local host sockets matching configured Docker ports (read-only snapshot; ownership unknown).",
+                result["observed_source_port_occupancy"].as_array().map_or(0, Vec::len));
+        }
         for c in array(&result["workloads"], "preview workloads")? {
             let safe = |s: &str| s.chars().filter(|c| !c.is_control()).take(48).collect::<String>();
             println!("  {}: blocked pending manual checks ({} findings)",
