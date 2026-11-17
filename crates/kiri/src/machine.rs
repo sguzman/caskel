@@ -37,7 +37,7 @@ fn ok(r: io::Result<client::Response>) -> io::Result<client::Response> {
 
 pub fn run(args: &[String]) -> io::Result<()> {
     if !client::alive() {
-        return Err(io::Error::other("kiri daemon is not running: open Kiri.app or run `kiri daemon`"));
+        return Err(io::Error::other("Caskel daemon is not running; start caskel.service or run `caskel daemon`"));
     }
     let name = args.get(1).map(String::as_str).unwrap_or_default();
     let need_name = || if name.is_empty() { Err(io::Error::other("name a machine")) } else { Ok(()) };
@@ -65,7 +65,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
             Ok(())
         }
         _ => Err(io::Error::other(
-            "usage: kiri machine create NAME [--distro ubuntu|debian|alpine|fedora|arch|rocky|opensuse | --image IMAGE] [--systemd]\n       kiri machine list | shell NAME [-- CMD...] | start | stop | restart | delete NAME",
+            "usage: caskel machine create NAME [--distro ubuntu|debian|alpine|fedora|arch|rocky|opensuse | --image IMAGE] [--systemd]\n       caskel machine list | shell NAME [-- CMD...] | start | stop | restart | delete NAME",
         )),
     }
 }
@@ -153,7 +153,7 @@ command -v sudo >/dev/null 2>&1 || (apt-get update -qq && DEBIAN_FRONTEND=nonint
     if client::exec(&container(name), &["sh", "-c", &wait])?.0 != 0 {
         return Err(io::Error::other(format!("machine {name} is running, but the user {user} could not be added to it")));
     }
-    println!("machine {name} ({image}) is running: kiri machine shell {name}");
+    println!("machine {name} ({image}) is running: caskel machine shell {name}");
     Ok(())
 }
 
@@ -175,7 +175,7 @@ fn urlish(s: &str) -> String {
 /// it is under HOMES, else in the user's home. The docker CLI handles the
 /// terminal.
 fn shell(name: &str, cmd: &[&str]) -> io::Result<()> {
-    let docker = client::docker_cli().ok_or_else(|| io::Error::other("no docker CLI found (Kiri.app bundles one)"))?;
+    let docker = client::docker_cli().ok_or_else(|| io::Error::other("no docker CLI found; install the Docker CLI to use this command"))?;
     let (user, _, _) = user();
     let home = home(&user);
     let cwd = std::env::current_dir().ok().filter(|d| d.starts_with(HOMES)).map_or_else(|| home.clone(), |d| d.display().to_string());

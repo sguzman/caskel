@@ -28,7 +28,7 @@ const MEMORY_FLOOR: u64 = 256 << 20;
 const MEMORY_GROW: u64 = 1 << 30;
 
 /// What a request that needs the VM gets while Kiri is stopped.
-pub const STOPPED: &str = "Kiri is stopped: press Start in the Kiri window to run containers again";
+pub const STOPPED: &str = "Caskel is stopped: start the Caskel engine before running containers";
 
 /// The file that keeps "stopped" across engine restarts.
 fn stopped_marker() -> Option<std::path::PathBuf> {
@@ -1138,7 +1138,7 @@ impl Engine {
         if let Some(f) = stopped_marker() {
             let _ = std::fs::write(f, b"");
         }
-        crate::diag::info!("Kiri stopped: the VM stays off until Start");
+        crate::diag::info!("Caskel stopped: engine remains off until started");
         self.sleep_now()
     }
 
@@ -1146,7 +1146,7 @@ impl Engine {
     /// for `/kiri/wake`).
     pub fn unstop(&self) {
         if self.stopped.swap(false, std::sync::atomic::Ordering::SeqCst) {
-            crate::diag::info!("Kiri started");
+            crate::diag::info!("Caskel started");
         }
         if let Some(f) = stopped_marker() {
             let _ = std::fs::remove_file(f);

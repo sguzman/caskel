@@ -26,10 +26,10 @@ pub fn handles(command: &str) -> bool {
 /// the exit code are docker's own. Returns only if that fails.
 #[cfg(unix)]
 pub fn run(args: &[String]) -> io::Result<()> {
-    let docker = client::docker_cli().ok_or_else(|| io::Error::other("no docker CLI found; open Kiri once to set it up"))?;
+    let docker = client::docker_cli().ok_or_else(|| io::Error::other("no docker CLI found; install the Docker CLI to use Caskel commands"))?;
     let socket = client::socket()?;
     if !client::alive() {
-        return Err(io::Error::other("Kiri isn't running. Open Kiri, or start it with `kiri daemon`"));
+        return Err(io::Error::other("Caskel isn't running; start caskel.service or run `caskel daemon`"));
     }
     let mut cmd = std::process::Command::new(docker);
     cmd.args(args).env("DOCKER_HOST", format!("unix://{}", socket.display())).env_remove("DOCKER_CONTEXT");

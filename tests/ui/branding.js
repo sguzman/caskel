@@ -10,6 +10,11 @@ t("Spanish locale retains its words but names Caskel", () => {
   const v = tr("Build with Kiri");
   if (!/Caskel/.test(v) || /\bKiri\b/.test(v)) throw new Error(v);
 });
+t("search combobox has a Caskel accessible name while preserving its translation key", () => {
+  const search = document.querySelector("#gq");
+  if (!search || !search.getAttribute("aria-label")?.includes("Caskel")) throw new Error("search still advertises Kiri");
+  if (search.getAttribute("data-i18n-label") !== "Search Kiri") throw new Error("legacy translation key was renamed");
+});
 t("upstream Kiri Cloud and Kiri Share are not falsely rebranded", () => {
   if (caskelBrand("Kiri Cloud; Kiri Share") !== "Kiri Cloud; Kiri Share") throw new Error("falsely named a Caskel cloud");
 });

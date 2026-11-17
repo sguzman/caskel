@@ -529,7 +529,7 @@ pub fn crash_text(t: SystemTime, thread: &str, at: &str, message: &str, backtrac
          Location: {at}\n\
          Message:  {message}\n\
          System:   {system}\n\
-         Command:  kiri {command}\n\
+         Command:  caskel {command}\n\
          \n\
          Backtrace:\n{backtrace}\n",
         app = crate::flavor::APP,

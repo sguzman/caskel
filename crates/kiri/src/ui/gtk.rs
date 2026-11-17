@@ -33,12 +33,12 @@ const ICON_SVG: &[u8] = include_bytes!("../../../../brand/caskel-mark.svg");
 /// the sidebar section to open on.
 pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
     // The desktop file's name, before GTK starts: on Wayland it's the window's
-    // app id, which is how the dock finds Kiri's launcher and icon.
+    // app id, which is how the desktop associates Caskel with its launcher and icon.
     glib::set_prgname(Some("caskel"));
     gtk::init().map_err(|e| io::Error::other(format!("no display to open the window on ({e})")))?;
     let (tx, rx) = mpsc::channel();
     let engine_tx = tx.clone();
-    let engine = std::thread::Builder::new().name("kiri-engine".into()).spawn(move || engine(rx, engine_tx))?;
+    let engine = std::thread::Builder::new().name("caskel-engine".into()).spawn(move || engine(rx, engine_tx))?;
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title(crate::flavor::APP.get());

@@ -524,7 +524,7 @@ pub enum LoginPoll {
 /// GitHub device flow, step two. Call every `interval` until `Done`.
 pub fn login_poll(code: &DeviceCode) -> io::Result<LoginPoll> {
     if Instant::now() > code.expires {
-        return Err(io::Error::other("the sign-in code expired; run `kiri share login` again"));
+        return Err(io::Error::other("the sign-in code expired; run `caskel share login` again"));
     }
     let mut cfg = load()?;
     let (status, v) = api(&server(&cfg), "POST", "/v1/login/poll", Some(&json!({ "device_code": code.device_code, "device": cfg.device })), None)?;
@@ -545,10 +545,10 @@ pub fn logout() -> io::Result<()> {
 /// The account and its limits, as the edge reports them.
 pub fn whoami() -> io::Result<Value> {
     let cfg = load()?;
-    let token = cfg.token.as_deref().ok_or_else(|| io::Error::other("not signed in; run `kiri share login`"))?;
+    let token = cfg.token.as_deref().ok_or_else(|| io::Error::other("not signed in; run `caskel share login`"))?;
     let (status, v) = api(&server(&cfg), "GET", "/v1/whoami", None, Some(token))?;
     if status == 401 {
-        return Err(io::Error::other("your sign-in is no longer valid; run `kiri share login`"));
+        return Err(io::Error::other("your sign-in is no longer valid; run `caskel share login`"));
     }
     if status != 200 {
         return Err(api_error(&v, status));
@@ -561,10 +561,10 @@ pub fn whoami() -> io::Result<Value> {
 /// A signed-in API call: the saved token, and a plain message when it has expired.
 fn signed_in(method: &str, path: &str, body: Option<&Value>) -> io::Result<(u16, Value)> {
     let cfg = load()?;
-    let token = cfg.token.as_deref().ok_or_else(|| io::Error::other("not signed in; run `kiri share login`"))?;
+    let token = cfg.token.as_deref().ok_or_else(|| io::Error::other("not signed in; run `caskel share login`"))?;
     let (status, v) = api(&server(&cfg), method, path, body, Some(token))?;
     if status == 401 {
-        return Err(io::Error::other("your sign-in is no longer valid; run `kiri share login`"));
+        return Err(io::Error::other("your sign-in is no longer valid; run `caskel share login`"));
     }
     Ok((status, v))
 }
@@ -629,7 +629,7 @@ pub fn reserve(name: &str) -> io::Result<ReservedName> {
         200..=202 => Ok(reserved_name(&v)),
         403 if v["error"].as_str().is_some_and(|e| e.contains("isn't open")) => Err(api_error(&v, status)),
         403 => Err(io::Error::other(format!(
-            "{}. Release one with `kiri share release NAME`, or see your names with `kiri share names`.",
+            "{}. Release one with `caskel share release NAME`, or see your names with `caskel share names`.",
             v["error"].as_str().unwrap_or("your plan's reserved names are all in use").trim_end_matches('.')
         ))),
         _ => Err(api_error(&v, status)),
@@ -837,7 +837,7 @@ pub fn resolve_via(arg: &str, inspect: impl FnOnce(&str) -> io::Result<Option<Va
 #[cfg(unix)]
 fn container_target(arg: &str) -> io::Result<Target> {
     if !client::alive() {
-        return Err(io::Error::other(format!("`{arg}` isn't a port, and Kiri isn't running to look up a container by that name")));
+        return Err(io::Error::other(format!("`{arg}` isn't a port, and Caskel isn't running to look up a container by that name")));
     }
     let r = client::request("GET", &format!("/containers/{arg}/json"), None)?;
     if r.status == 404 {
@@ -854,10 +854,10 @@ fn container_target(arg: &str) -> io::Result<Target> {
 fn container_from(arg: &str, c: &Value) -> io::Result<Target> {
     let name = c["Name"].as_str().unwrap_or(arg).trim_start_matches('/').to_owned();
     if c["State"]["Running"].as_bool() != Some(true) {
-        return Err(io::Error::other(format!("container `{name}` isn't running; start it with `kiri start {name}`")));
+        return Err(io::Error::other(format!("container `{name}` isn't running; start it with `caskel start {name}`")));
     }
     let addr = published_port(c).ok_or_else(|| {
-        io::Error::other(format!("container `{name}` publishes no ports; run it with -p (for example `kiri run -p 8080:80 …`) or share a port number"))
+        io::Error::other(format!("container `{name}` publishes no ports; run it with -p (for example `caskel run -p 8080:80 …`) or share a port number"))
     })?;
     Ok(Target { display: format!("{name} ({addr})"), label: name, addr })
 }
@@ -1003,7 +1003,7 @@ type OnEvent = Arc<dyn Fn(Event) + Send + Sync>;
 /// that, including the first connection, is reported through `on_event`.
 pub fn start(opts: Options, on_event: impl Fn(Event) + Send + Sync + 'static) -> io::Result<Handle> {
     let cfg = load()?;
-    let token = cfg.token.clone().ok_or_else(|| io::Error::other("not signed in; run `kiri share login`"))?;
+    let token = cfg.token.clone().ok_or_else(|| io::Error::other("not signed in; run `caskel share login`"))?;
     let srv = server(&cfg);
     let stop = Arc::new(Stopper::default());
     let on_event: OnEvent = Arc::new(move |e: Event| {
@@ -1916,7 +1916,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
             if r.pending {
                 println!("  {}  Asked for {}", p.accent("◌"), p.bold(&r.url));
                 println!("     {}", p.dim("We check each name before it's yours, usually within a day, and email you when it's decided."));
-                println!("     {}", p.dim("Nobody else can ask for it meanwhile. See where it stands with `kiri share names`."));
+                println!("     {}", p.dim("Nobody else can ask for it meanwhile. See where it stands with `caskel share names`."));
             } else {
                 println!("  {}  {} is yours: {}", p.accent("●"), p.bold(&r.name), p.accent(&p.bold(&r.url)));
                 println!("     {}", p.dim(&format!("Share on it with `kiri PORT --name {}`.", r.name)));
@@ -1977,7 +1977,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
                         println!(
                             "  {}  {}",
                             p.dim("·"),
-                            p.dim(&format!("Your plan's {limit} reserved name{} in use, so this address gets a random ending. See `kiri share names`.", if limit == 1 { " is" } else { "s are" }))
+                            p.dim(&format!("Your plan's {limit} reserved name{} in use, so this address gets a random ending. See `caskel share names`.", if limit == 1 { " is" } else { "s are" }))
                         );
                     }
                     Ok(AutoReserve::Mine | AutoReserve::Unavailable) | Err(_) => {}
@@ -2052,7 +2052,7 @@ fn names_cli() -> io::Result<()> {
     let limit = n.limit.map_or_else(|| "no limit".to_owned(), |l| format!("{} of {l} used", n.items.len()));
     println!("  {}  {}", p.accent(&p.bold("◆ Reserved names")), p.dim(&limit));
     if n.items.is_empty() {
-        println!("     {}", p.dim("None yet. Ask for one with `kiri share reserve NAME`."));
+        println!("     {}", p.dim("None yet. Ask for one with `caskel share reserve NAME`."));
     }
     for r in &n.items {
         if r.pending {
@@ -2105,7 +2105,7 @@ fn status_cli(json: bool) -> io::Result<()> {
         return Ok(());
     }
     if cfg.token.is_none() {
-        println!("Not signed in to Kiri Share ({}). Run `kiri share login`.", srv.host);
+        println!("Not signed in to Kiri Share ({}). Run `caskel share login`.", srv.host);
         return Ok(());
     }
     let v = whoami()?;

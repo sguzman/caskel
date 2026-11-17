@@ -36,6 +36,19 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 
 ## Current priorities
 
+**Maintainer priority gate (2026-11-16): BRANDING FIRST.** Before any further
+kernel, Docker migration, host regression or unrelated feature development,
+complete and verify the remaining Caskel source/CLI/UI/documentation
+branding, then correct the GitHub About description and inherited `runkiri.com`
+homepage through the repository owner's settings. The open migration and
+host-test PRs #23 and #35 are parked; do **not** merge or extend them until
+the branding gate is explicitly closed. Real Linux GTK desktop acceptance
+remains separately pending and must never be misreported as covered by a
+compile-only CI check. Keep historical Kiri copyright attribution,
+certificate/storage identities and compatibility APIs until safe migration.
+
+**After that branding gate is closed**, resume these engineering priorities:
+
 1. Finish legally safe disposal/audit of old guest-kernel build dependencies. Preserve required GPL corresponding-source artifacts and `crates/kiri-vmm/src/process.rs` (now the `caskel-agent-transport` package).
 2. Keep canonical Caskel identity and `CASKEL_*` configuration while preserving tested historical `KIRI_*`, `/kiri/*` and DNS/TLS interfaces until safe migration. The GitHub repository's description/homepage still require an owner-level setting change outside source control.
 3. Validate the read-only Docker inventory against a representative existing Docker host (no mutation), then implement the deterministic dry-run before any service transfer.
