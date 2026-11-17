@@ -9,7 +9,24 @@ rustPlatform.buildRustPackage {
   # Upstream Cargo.toml intentionally uses 0.0.0 for checkout builds.
   version = "0.2.1-git";
 
-  src = lib.cleanSource ../.;
+  # The original guest kernel sources and build scripts remain in Git for
+  # historical GPL provenance, but are not inputs to Caskel's host-only
+  # engine/agent binaries. Preserve cleanSource's VCS/editor filtering.
+  src = lib.cleanSourceWith {
+    src = lib.cleanSource ../.;
+    filter = path: _type:
+      let
+        relative = lib.removePrefix "${toString ../.}/" (toString path);
+      in
+      relative != "guest" && !(lib.hasPrefix "guest/" relative);
+  };
+
+  # Exercise the actual filtered build input in CI, not just the filter text.
+  preConfigure = ''
+    test -f Cargo.toml
+    test -d crates/kiri-vmm
+    test ! -e guest
+  '';
 
   cargoLock.lockFile = ../Cargo.lock;
 
