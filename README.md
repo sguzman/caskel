@@ -70,7 +70,16 @@ The [verified development roadmap](docs/roadmap.md) tracks full-lifecycle milest
 4. Selective upstream synchronization and tracked security updates.
 5. Gradual, recoverable migration of self-hosted workloads.
 
-**Read-only Docker inventory and a conservative migration preview are implemented** as `caskel migrate docker --list [--json]` and `caskel migrate docker --dry-run [--json]`. The preview reports prerequisites and potential source-side conflicts, but does not inspect target readiness or approve any workload for cutover. Image transfer, persistent-data migration and service cutover remain unimplemented. Caskel does not move or stop existing Docker services.
+**Read-only Docker inventory and a conservative migration preview are implemented** as `caskel migrate docker --list [--json]` and `caskel migrate docker --dry-run [--json]`. The preview reports prerequisites and potential source-side conflicts, but does not inspect target readiness or approve any workload for cutover. Image transfer, persistent-data migration and service cutover remain unimplemented.
+
+To **optionally** inspect the separate Caskel target's configured host ports
+without changing either engine, use
+`caskel migrate docker --dry-run --target-socket /run/caskel/docker.sock`.
+This reads the target's container metadata using GET requests only and
+flags *potential* cross-engine host-port overlap. Without this explicit flag,
+the target is not inspected. This does not check arbitrary host processes,
+network/IPAM compatibility, backup integrity, or authorize a cutover.
+Treat the JSON output as private infrastructure metadata. Caskel does not move or stop existing Docker services.
 
 ## Origins and license
 
