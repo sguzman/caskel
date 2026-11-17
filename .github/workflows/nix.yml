@@ -173,8 +173,10 @@ jobs:
           # Network-scoped DNS must not leak names to an unrelated private
           # bridge. A failed lookup is the expected result, not a skipped test.
           sudo "$BIN" network create caskel-ci-dns-isolated
+          sudo "$BIN" run -d --name caskel-ci-isolated-peer --network caskel-ci-dns-isolated alpine:3.21 sleep 1d
           sudo "$BIN" run --rm --network caskel-ci-dns-isolated alpine:3.21 \
-            sh -c 'if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "cross-network DNS leak" >&2; exit 1; fi'
+            sh -c 'nslookup caskel-ci-isolated-peer | grep -q caskel-ci-isolated-peer; if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "cross-network DNS leak" >&2; exit 1; fi'
+          sudo "$BIN" rm -f caskel-ci-isolated-peer
           sudo "$BIN" network rm caskel-ci-dns-isolated
           # Removing a network while a live peer is attached must fail and
           # must not break name resolution on the still-active bridge.
@@ -251,10 +253,13 @@ jobs:
           fi
           test "$docker_containers_before_ports" = "$(docker ps -aq | sort)"
           sudo "$BIN" rm -f caskel-ci-dns-peer
-          # Container removal must withdraw its DNS name from the existing
-          # bridge. A stale successful lookup is a real failure.
+          # Container removal must withdraw its DNS name, while a surviving
+          # peer on the same bridge must still resolve. This positive
+          # control prevents DNS outages from passing the negative test.
+          sudo "$BIN" run -d --name caskel-ci-dns-survivor --network caskel-ci-dns alpine:3.21 sleep 1d
           sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
-            sh -c 'if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "stale container DNS name" >&2; exit 1; fi'
+            sh -c 'nslookup caskel-ci-dns-survivor | grep -q caskel-ci-dns-survivor; if nslookup caskel-ci-dns-peer >/dev/null 2>&1; then echo "stale container DNS name" >&2; exit 1; fi'
+          sudo "$BIN" rm -f caskel-ci-dns-survivor
           sudo "$BIN" network rm caskel-ci-dns
           test "$docker_networks_before" = "$(docker network ls -q | sort)"
           # Discovery must query the real Docker source, even while the
