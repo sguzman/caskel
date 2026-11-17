@@ -18,10 +18,11 @@ copyright/legal attribution continues to identify Kiri accurately.
 - Local diagnostic text: `Caskel diagnostics report`, default
   `caskel-report-<timestamp>.txt`; existing historical reports remain
   readable without rename or deletion.
-- Upstream Kiri Cloud account URLs remain labeled **Kiri Cloud**, not
-  Caskel Cloud. No Caskel Cloud service is offered. Connections to the
-  inherited Kiri-operated domain require an explicit
-  `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1` opt-in.
+- There is **no Caskel cloud**. Inherited Kiri Cloud and Share networking
+  must not be available in the Linux product, even with legacy credentials or
+  `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1`. The command and Linux GUI must not
+  offer uploads, account logins, or externally hosted tunnels. Local reports
+  and crash files remain accessible and are never uploaded automatically.
 
 ## Transitional protocol compatibility (not branding)
 
@@ -51,11 +52,9 @@ diagnostics as Caskel services.
   it must not check or advertise inherited Kiri release feeds, upstream
   `.deb`/`.rpm` downloads, or automatic in-app installation as Caskel updates.
   UI tests cover the pinned Nix state and external Kiri Cloud disclosures.
-- The Caskel Linux diagnostics screen must name the upstream-operated Kiri Cloud
-  service as the actual recipient, explain the explicit
-  `CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1` opt-in before uploading, and not imply
-  Caskel operates the service. New Linux-only disclosures use the existing
-  translation catalog keys in all 37 supported locale files. GTK/window
+- The Caskel Linux diagnostics screen must offer local report export and crash
+  inspection, without cloud upload or automatic crash reporting. Legacy
+  network entrypoints are denied regardless of old opt-in settings. GTK/window
   desktop acceptance is still distinct from headless Chrome and compile CI.
 - Do not auto-switch Docker's default context, rewrite old Kiri files, or
   restart either old Kiri or production Docker.
