@@ -33,6 +33,12 @@ t("diagnostic command labels say Caskel without changing translation keys", () =
   const s = brandedCliLabel(tr("A kiri command"));
   if (!/Caskel/.test(s) || /\bkiri\b/i.test(s)) throw new Error(s);
 });
+t("Linux startup never requests the disabled cloud Share list", () => {
+  const before = sent.length;
+  requestStartupShares();
+  if (sent.slice(before).some((m) => m.type === "shares"))
+    throw new Error("Linux startup still requests the disabled Share service");
+});
 t("Linux offers no Share or cloud report-upload controls", () => {
   const pane = diagPane();
   if (pane.includes("data-dgauto") || pane.includes('data-dgreport="send"') || pane.includes("data-crashsend"))

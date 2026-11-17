@@ -10284,7 +10284,11 @@ send("term", { name: "closeall" });
 document.querySelectorAll("svg[data-ph]").forEach((el) => (el.innerHTML = `<path d="${PH[el.dataset.ph]}"/>`));
 render();
 send("ready");
-send("shares");
+// Keep initial Share refresh only for upstream's Mac/Windows UI.
+// Linux Caskel has no hosted Share service or account; querying it emits
+// a spurious "Cloud sharing is disabled" toast on every launch.
+function requestStartupShares() { if (!LINUX) send("shares"); }
+requestStartupShares();
 send("logins");
 </script>
 </body>
