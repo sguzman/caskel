@@ -5399,6 +5399,8 @@ function aboutUpdate(version) {
     row = `<span>${tr("Version {version}", { version: v })}</span><span class="updpill new">${tr("{version} available", { version: esc(u.version) })}</span>${btn(u.error ? tr("Try again") : tr("Download"), 'data-upd="download"', "primary")}${whatsNew}`;
   } else if (s?.state === "available") {
     row = `<span>${tr("Version {version}", { version: v })}</span><span class="updpill new">${tr("{version} available", { version: esc(s.latest) })}</span>${btn(tr("Show"), "data-updcheck", "primary")}`;
+  } else if (s?.state === "nix") {
+    row = `<span>${tr("Version {version}", { version: v })}</span><span class="updpill test">Nix</span><span class="faint">${tr("doesn't update itself")}</span>`;
   } else if (s?.state === "package") {
     row = `<span>${tr("Version {version}", { version: v })}</span>${s.latest ? `<span class="updpill new">${tr("{version} available", { version: esc(s.latest) })}</span><button class="linkbtn" data-open-site="https://runkiri.com/releases/">${tr("Download the new .deb or .rpm")}</button>` : `<span class="updpill">${tr("Up to date")}</span><span class="faint">${tr("checked {ago}", { ago: ago(s.checked) })}</span>${check}`}`;
   } else if (s?.state === "test" || s?.state === "dev") {
@@ -5409,7 +5411,7 @@ function aboutUpdate(version) {
     row = `<span>${tr("Version {version}", { version: v })}</span><span class="faint">${tr("Couldn't check: {error}", { error: esc(s.error || "") })}</span>${check}`;
   } else row = `<span>${tr("Version {version}", { version: v })}</span>${check}`;
   const notes = u?.phase === "available" && u.notes.trim() ? `<div class="updnotes"><b>${tr("What's new in {version}", { version: esc(u.version) })}</b>${notesHtml(u.notes)}</div>` : "";
-  const fixed = s?.state === "test" || s?.state === "dev";
+  const fixed = s?.state === "test" || s?.state === "dev" || s?.state === "nix";
   const auto = prefs.updateAuto !== false;
   return `<div class="updrow">${row}</div>${notes}${fixed ? "" : `<div class="pref"><span class="t">${tr("Check for updates automatically")}</span><span class="d">${auto ? tr("On: Kiri checks each time it opens. It never updates without asking.") : tr("Off: Kiri checks only when you click Check now.")}</span>
       <div class="seg" role="group" aria-label="${tr("Check for updates automatically")}"><button data-updauto="0" aria-pressed="${!auto}">${tr("Off")}</button><button data-updauto="1" aria-pressed="${auto}">${tr("On")}</button></div></div>`}`;
