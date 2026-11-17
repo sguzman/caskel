@@ -1370,18 +1370,12 @@ mod tests {
         // Check for updates automatically stays off across launches.
         super::set_pref("updateAuto", false.into());
         assert_eq!(super::prefs()["updateAuto"], false);
-        // Crash reports remember when they were turned on, and only the
-        // setting itself can say so.
+        // Linux refuses to opt in to automatic uploads, including old settings.
         super::set_pref("crashReportsSince", 1.into());
-        assert_eq!(super::prefs().get("crashReportsSince"), None);
         super::set_pref("crashReports", true.into());
-        let since = super::prefs()["crashReportsSince"].as_u64().unwrap();
-        assert!(since > 1);
-        std::fs::write(dir.join("ui.json"), super::prefs().to_string().replace(&since.to_string(), "5")).unwrap();
-        super::set_pref("crashReports", true.into());
-        assert_eq!(super::prefs()["crashReportsSince"], 5, "already on: its time stays");
-        super::set_pref("crashReports", false.into());
         assert_eq!(super::prefs().get("crashReportsSince"), None);
+        assert_eq!(super::prefs().get("crashReports"), None);
+        assert!(!crate::diag::report::crash_reports_on());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
