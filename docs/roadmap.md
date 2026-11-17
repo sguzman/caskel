@@ -24,7 +24,7 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | D2 | Rewrite development, feature, security, release and contributor documentation for tested Linux behavior | 4 | 4 | Verified — PR #18, four CI workflows |
 | D3 | Remove upstream product branding from current-facing UI/assets; retain legally required provenance | 4 | 4 | Verified — #22, #25, #26, #28, #31; native Hyprland GTK branding QA recorded via #43, with specified translation/Network-pane/post-#42 visual limits |
 | E1 | Native, read-only Docker inventory of containers, images, networks, Compose projects and persistence | 7 | 5 | Partial — PR #17, GET-only source, populated fixture and disposable live Docker smoke; representative user-host QA remains |
-| E2 | Deterministic non-mutating migration dry-run with collision, gap, storage and rollback diagnostics | 8 | 0 | Active — PR #23 merged: GET-only source inventory → deterministic, blocked dry-run; source-side port reuse and storage/security/Compose/rollback prerequisites tested in unit + disposable CI. Target Caskel collisions, host occupancy, restore readiness and full actionable compatibility diagnosis unverified; no readiness or cutover claims |
+| E2 | Deterministic non-mutating migration dry-run with collision, gap, storage and rollback diagnostics | 8 | 0 | Active — PR #23 merged: GET-only source inventory → deterministic, blocked dry-run; source-side port reuse and storage/security/Compose/rollback prerequisites tested in unit + disposable CI. Opt-in target port/subnet overlap warnings added (#48–#49), but actual host occupancy, DNS/IPAM semantics, restore readiness and full actionable compatibility diagnosis remain unverified; no readiness or cutover claims |
 | F1 | Verified image transfer from Docker/registry into Caskel | 4 | 0 | Pending |
 | F2 | Recreate supported Compose/containers/networking without hijacking Docker | 4 | 0 | Pending |
 | F3 | Application-consistent persistent-data migration, ownership and restore verification | 4 | 0 | Pending |
@@ -50,8 +50,9 @@ localization QA. The branding QA itself left the score unchanged. The separately
 C4 build-input isolation and source-metadata audit contributes +1 (59/100);
 the final GPL provenance point is still open.
 
-The read-only migration preview in PR #23 is now **merged** after four green
-CI workflows; it never applies a plan and cannot approve a cutover. The
+The read-only migration preview in PR #23 is **merged**, followed by
+opt-in, GET-only target port inspection (#48) and subnet overlap warnings
+(#49, pending CI). It never applies a plan or approves a cutover. The
 outdated storage PR #35 was **closed without merge**, replaced by merged
 PR #46's disposable-host persistence and read-only-bind tests.
 Neither implies production readiness or permits changes to Docker state.
