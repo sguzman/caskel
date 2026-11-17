@@ -89,6 +89,12 @@ caskel migrate docker --dry-run --target-socket /run/caskel/docker.sock --json
 The target must identify as Caskel and be a different Unix socket from
 Docker's. The command uses GET only, reports potential overlapping published
 host ports and IPAM IPv4/IPv6 CIDR ranges, and keeps every workload blocked.
+Network snapshots also retain only subnet-to-gateway IP pairs from Docker's
+GET-only `IPAM.Config` (not arbitrary IPAM options, labels or DNS values).
+If overlapping Docker and Caskel subnets specify *different valid gateways*,
+the preview flags a `potential_source_target_gateway_mismatch`. Missing,
+invalid or equal gateways are **not** evidence of route compatibility; the
+real routing table, network ownership and migration isolation remain unverified.
 PRs #48 and #49 both passed Linux Nix/runtime, UI, CodeQL and performance
 checks; those checks are on disposable GitHub runners, not a production host.
 Network-name matches do not imply safe equivalence. Invalid/unavailable
