@@ -170,6 +170,38 @@ jobs:
           sudo "$BIN" run -d --name caskel-ci-dns-peer --network caskel-ci-dns alpine:3.21 sleep 1d
           sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
             sh -c 'nslookup caskel-ci-dns-peer | grep -q caskel-ci-dns-peer'
+          # On this disposable runner, publish a loopback-only TCP port from
+          # a Caskel bridge container. This must neither affect Docker's
+          # own containers nor require swapping the Docker default context.
+          docker_containers_before_ports=$(docker ps -aq | sort)
+          sudo "$BIN" run -d --name caskel-ci-port --network caskel-ci-dns \
+            -p 127.0.0.1:18765:8080 alpine:3.21 \
+            sh -c 'mkdir -p /www; echo caskel-port-ok > /www/index.html; exec busybox httpd -f -p 8080 -h /www'
+          curl -fsS --retry 8 --retry-connrefused --retry-delay 1 --max-time 3 \
+            http://127.0.0.1:18765/ | grep -qx caskel-port-ok
+          # A second Caskel container must not steal the reserved host
+          # listener. The first container must remain reachable afterward.
+          if sudo "$BIN" run --rm --network caskel-ci-dns \
+            -p 127.0.0.1:18765:8080 alpine:3.21 true >/dev/null 2>&1; then
+            echo 'Caskel allowed duplicate published TCP host port' >&2
+            exit 1
+          fi
+          curl -fsS --max-time 3 http://127.0.0.1:18765/ | grep -qx caskel-port-ok
+          # A daemon restart cannot silently claim Docker's resources.
+          # Explicitly restart this test container if it was stopped.
+          sudo systemctl restart caskel.service
+          sudo systemctl is-active --quiet caskel.service
+          if [ "$(sudo "$BIN" inspect -f '{{.State.Running}}' caskel-ci-port)" != true ]; then
+            sudo "$BIN" start caskel-ci-port
+          fi
+          curl -fsS --retry 8 --retry-connrefused --retry-delay 1 --max-time 3 \
+            http://127.0.0.1:18765/ | grep -qx caskel-port-ok
+          sudo "$BIN" rm -f caskel-ci-port
+          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18765/ >/dev/null 2>&1; then
+            echo 'Caskel did not release published port after container removal' >&2
+            exit 1
+          fi
+          test "$docker_containers_before_ports" = "$(docker ps -aq | sort)"
           sudo "$BIN" rm -f caskel-ci-dns-peer
           sudo "$BIN" network rm caskel-ci-dns
           test "$docker_networks_before" = "$(docker network ls -q | sort)"
