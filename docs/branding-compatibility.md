@@ -47,6 +47,10 @@ diagnostics as Caskel services.
 - The pinned headless Nix build is supported. PR #32 adds a Linux
   GTK/WebKitGTK 4.1 compile gate to CI for the optional window; this is
   distinct from **real desktop GUI acceptance**, which remains pending.
+- The optional Linux GTK About panel identifies its package as Nix-managed;
+  it must not check or advertise inherited Kiri release feeds, upstream
+  `.deb`/`.rpm` downloads, or automatic in-app installation as Caskel updates.
+  UI tests cover the pinned Nix state and external Kiri Cloud disclosures.
 - Do not auto-switch Docker's default context, rewrite old Kiri files, or
   restart either old Kiri or production Docker.
 - Do not bulk-replace protocol/setting identifiers without versioned

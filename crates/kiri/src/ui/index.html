@@ -5399,6 +5399,8 @@ function aboutUpdate(version) {
     row = `<span>${tr("Version {version}", { version: v })}</span><span class="updpill new">${tr("{version} available", { version: esc(u.version) })}</span>${btn(u.error ? tr("Try again") : tr("Download"), 'data-upd="download"', "primary")}${whatsNew}`;
   } else if (s?.state === "available") {
     row = `<span>${tr("Version {version}", { version: v })}</span><span class="updpill new">${tr("{version} available", { version: esc(s.latest) })}</span>${btn(tr("Show"), "data-updcheck", "primary")}`;
+  } else if (s?.state === "nix") {
+    row = `<span>${tr("Version {version}", { version: v })}</span><span class="updpill test">Nix</span><span class="faint">${tr("doesn't update itself")}</span>`;
   } else if (s?.state === "package") {
     row = `<span>${tr("Version {version}", { version: v })}</span>${s.latest ? `<span class="updpill new">${tr("{version} available", { version: esc(s.latest) })}</span><button class="linkbtn" data-open-site="https://runkiri.com/releases/">${tr("Download the new .deb or .rpm")}</button>` : `<span class="updpill">${tr("Up to date")}</span><span class="faint">${tr("checked {ago}", { ago: ago(s.checked) })}</span>${check}`}`;
   } else if (s?.state === "test" || s?.state === "dev") {
@@ -5409,7 +5411,7 @@ function aboutUpdate(version) {
     row = `<span>${tr("Version {version}", { version: v })}</span><span class="faint">${tr("Couldn't check: {error}", { error: esc(s.error || "") })}</span>${check}`;
   } else row = `<span>${tr("Version {version}", { version: v })}</span>${check}`;
   const notes = u?.phase === "available" && u.notes.trim() ? `<div class="updnotes"><b>${tr("What's new in {version}", { version: esc(u.version) })}</b>${notesHtml(u.notes)}</div>` : "";
-  const fixed = s?.state === "test" || s?.state === "dev";
+  const fixed = s?.state === "test" || s?.state === "dev" || s?.state === "nix";
   const auto = prefs.updateAuto !== false;
   return `<div class="updrow">${row}</div>${notes}${fixed ? "" : `<div class="pref"><span class="t">${tr("Check for updates automatically")}</span><span class="d">${auto ? tr("On: Kiri checks each time it opens. It never updates without asking.") : tr("Off: Kiri checks only when you click Check now.")}</span>
       <div class="seg" role="group" aria-label="${tr("Check for updates automatically")}"><button data-updauto="0" aria-pressed="${!auto}">${tr("Off")}</button><button data-updauto="1" aria-pressed="${auto}">${tr("On")}</button></div></div>`}`;
@@ -6385,6 +6387,9 @@ function pulledToast(e) {
    crash's report; an error toast's Details shows its action's log lines. */
 const DG_PART = { ui: "Window", daemon: "Engine", cli: "CLI" };
 const DG_WHO = { ui: "The window", daemon: "The engine", cli: "A kiri command" };
+// The old localized keys say "kiri" in lowercase, unlike the proper-name
+// substitution. Change only Caskel's command labels, never user-provided data.
+const brandedCliLabel = (text) => LINUX ? String(text).replace(/\bkiri\b/gi, "Caskel") : text;
 /* i18n */ void [tr("Window"), tr("Engine"), tr("CLI"), tr("The window"), tr("The engine"), tr("A kiri command")];
 const dg = { part: "", level: "", find: "", op: "", follow: true, lines: null, shown: "", crashes: null, open: new Set(), sending: new Set(), sent: "", copyOp: "" };
 const dgIcon = (name) => `<svg viewBox="0 0 256 256" aria-hidden="true"><path d="${PH[name]}"/></svg>`;
@@ -6458,12 +6463,12 @@ function diagPane() {
   const crashes = dg.crashes == null ? `<div class="none">${tr("Looking for crash reports…")}</div>` : dg.crashes.length ? dg.crashes.map(crash).join("") : `<div class="none">${tr("No crashes. Kiri keeps a report here if one of its parts ever stops unexpectedly.")}</div>`;
   return `<div class="pane diag"><h3>${tr("Diagnostics")}</h3>
     <div class="pref"><span class="t">${tr("Send crash reports automatically")}</span>
-      <span class="d">${tr("When part of Kiri crashes, the stack trace and the last 200 log lines before it go to Kiri Cloud, with Kiri's and the system's versions, the computer's model and a random ID for this install. Never your Kiri Cloud account, and nothing from inside your containers. Your home folder, image and container names, tokens and passwords are taken out.")}</span>
+      <span class="d">${LINUX ? "Caskel can prepare redacted crash reports. Automatic delivery to upstream-operated Kiri Cloud is blocked unless you separately opt in with CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1. Kiri Cloud is not operated by Caskel. Review reports before enabling any upload." : tr("When part of Kiri crashes, the stack trace and the last 200 log lines before it go to Kiri Cloud, with Kiri's and the system's versions, the computer's model and a random ID for this install. Never your Kiri Cloud account, and nothing from inside your containers. Your home folder, image and container names, tokens and passwords are taken out.")}</span>
       <div class="seg" role="group" aria-label="${tr("Send crash reports automatically")}"><button data-dgauto="0" aria-pressed="${prefs.crashReports !== true}">${tr("Off")}</button><button data-dgauto="1" aria-pressed="${prefs.crashReports === true}">${tr("On")}</button></div></div>
     <div class="pref"><span class="t">${tr("Diagnostics report")}</span>
       <span class="d">${tr("Recent logs, crash reports and versions in one redacted file, for when something goes wrong.")}</span>
       <div class="dg-acts"><button class="btn sm" data-dgreport="save">${tr("Create report…")}</button><button class="btn sm" data-dgreport="send">${dgIcon("send")}${tr("Send to Kiri")}</button></div>
-      ${dg.sent ? `<div class="dg-result">${dgIcon("checkcircle")}<span>${tr("Sent. Quote {id} if you write to us.", { id: `<span class="mono">${esc(dg.sent)}</span>` })}</span>${copyBtn(dg.sent, tr("report ID"))}</div>` : ""}</div>
+      ${dg.sent ? `<div class="dg-result">${dgIcon("checkcircle")}<span>${LINUX ? `Sent to upstream Kiri Cloud (not Caskel): <span class="mono">${esc(dg.sent)}</span>` : tr("Sent. Quote {id} if you write to us.", { id: `<span class="mono">${esc(dg.sent)}</span>` })}</span>${copyBtn(dg.sent, tr("report ID"))}</div>` : ""}</div>
     <h4 class="ksub">${tr("Recent crashes")}</h4>
     <div class="dg-crashes">${crashes}</div>
     <h4 class="ksub">${tr("Logs")}</h4>
@@ -6541,10 +6546,10 @@ function drawReport() {
   const item = (t, d) => `<div class="rp-item">${dgIcon("check")}<span class="t">${t}</span><span class="d">${d}</span></div>`;
   scrim.innerHTML = `<div class="dialog rp-dialog" role="dialog" aria-modal="true" aria-labelledby="rp-t">
     <h3 id="rp-t">${send_ ? tr("Send a report to Kiri") : tr("Create a diagnostics report")}</h3>
-    <p>${send_ ? tr("We get the file below, redacted, and you get an ID to quote when you write to us. If you're signed in to Kiri Cloud, it says it's from you, so we can reply.") : tr("One text file, redacted, saved to your Desktop and shown in Finder. Read it before you share it.")}</p>
-    <div class="rp-list">${item(tr("Kiri's logs"), tr("The last 300 lines from the window, the engine and kiri commands, and the engine's own output"))}
-      ${item(tr("Crash reports"), tr("The 5 newest, and macOS's own crash reports for Kiri from the last 30 days"))}
-      ${item(tr("Kiri and this Mac"), tr("Versions, macOS, whether the engine runs, how many containers and images"))}
+    <p>${send_ ? (LINUX ? "This report goes to Kiri Cloud, an upstream-operated service, not Caskel. It requires explicit CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1 opt-in. Review the redacted contents and recipient before sending." : tr("We get the file below, redacted, and you get an ID to quote when you write to us. If you're signed in to Kiri Cloud, it says it's from you, so we can reply.")) : tr("One text file, redacted, saved to your Desktop and shown in Finder. Read it before you share it.")}</p>
+    <div class="rp-list">${item(tr("Kiri's logs"), brandedCliLabel(tr("The last 300 lines from the window, the engine and kiri commands, and the engine's own output")))}
+      ${item(tr("Crash reports"), LINUX ? "The five most recent Caskel crash reports." : tr("The 5 newest, and macOS's own crash reports for Kiri from the last 30 days"))}
+      ${item(LINUX ? "Caskel and Linux" : tr("Kiri and this Mac"), LINUX ? "Caskel and Linux versions, engine status, container and image totals." : tr("Versions, macOS, whether the engine runs, how many containers and images"))}
       <label class="rp-item opt"><input type="checkbox" data-rpopt${rp.containers ? " checked" : ""}${rp.state ? " disabled" : ""}><span class="t">${tr("Container list")}</span><span class="d">${tr("Names, images and status. Not their files, logs or environment.")}</span></label></div>
     <div class="rp-red">${dgIcon("shieldcheck")}<span>${tr("Your home folder's path, tokens, passwords and other secrets are blanked before anything is written.")}</span></div>
     ${done ? `<div class="rp-id"><span class="lab">${tr("Report ID")}</span><span class="val">${esc(rp.id)}</span><button class="btn sm" data-rpcopy>${dgIcon("copy")}${tr("Copy")}</button></div>` : ""}
@@ -6558,15 +6563,15 @@ function drawReport() {
 function crashCard() {
   const c = ui.crash;
   if (!c || c.hidden) return "";
-  const who = DG_WHO[c.part] ? tr(DG_WHO[c.part]) : tr("Part of Kiri"), when = dgWhen(c.time, true);
-  const title = c.part === "cli" ? tr("A kiri command crashed") : tr("Kiri quit unexpectedly last time");
+  const who = DG_WHO[c.part] ? brandedCliLabel(tr(DG_WHO[c.part])) : tr("Part of Kiri"), when = dgWhen(c.time, true);
+  const title = c.part === "cli" ? brandedCliLabel(tr("A kiri command crashed")) : tr("Kiri quit unexpectedly last time");
   const more = c.count > 1 ? tr(" That's {count} crashes since Kiri last opened.", { count: c.count }) : "";
   const head = (ic, h, sub) => `<div class="updcard" role="dialog" aria-label="${esc(h)}">
     <div class="head"><div class="ic ${ic}">${dgIcon(ic === "ok" ? "checkcircle" : "warning")}</div><div class="txt"><h4>${esc(h)}</h4><div class="sub">${sub}</div></div>
     <button class="close" data-crashcard="close" aria-label="${tr("Close")}">${UPD_ICON.x}</button></div>`;
-  if (c.id || c.state === "sent") return `${head("ok", tr("Report sent"), tr("Quote {id} if you write to us about this crash.", { id: `<span class="mono">${esc(c.id)}</span>` }))}
+  if (c.id || c.state === "sent") return `${head("ok", tr("Report sent"), (LINUX ? `Upstream-operated Kiri Cloud received report <span class="mono">${esc(c.id || "")}</span>; Caskel does not operate that service.` : tr("Quote {id} if you write to us about this crash.", { id: `<span class="mono">${esc(c.id)}</span>` })))}
     <div class="row">${btn(`${dgIcon("copy")}${tr("Copy ID")}`, 'data-crashcard="copy"')}<button class="lnk" data-crashcard="view">${tr("Details")}</button></div></div>`;
-  if (c.sent || (c.crashReports && c.state !== "error")) return `${head("calm", title, tr("{who} stopped {when}.{more} Crash reports are sent automatically, so this one goes to Kiri too.", { who, when: esc(when), more }))}
+  if (c.sent || (c.crashReports && c.state !== "error")) return `${head("calm", title, (LINUX ? `${esc(who)} stopped ${esc(when)}.${more} ${c.sent ? "This report was sent to upstream Kiri Cloud." : "Automatic crash reporting is enabled, but sending to Kiri Cloud still requires explicit CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1 opt-in."}` : tr("{who} stopped {when}.{more} Crash reports are sent automatically, so this one goes to Kiri too.", { who, when: esc(when), more })))}
     <div class="row"><button class="lnk" data-crashcard="view">${tr("Details")}</button></div></div>`;
   return `${head("calm", title, tr("{who} stopped {when}.{more} A report helps us fix it: the stack trace and the last 200 log lines before it, with your home folder and tokens blanked.", { who, when: esc(when), more }))}
     ${c.error ? `<div class="err">${tr("Couldn't send it: {error}", { error: esc(c.error) })}</div>` : ""}

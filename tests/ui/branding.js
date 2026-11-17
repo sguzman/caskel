@@ -15,6 +15,49 @@ t("search combobox has a Caskel accessible name while preserving its translation
   if (!search || !search.getAttribute("aria-label")?.includes("Caskel")) throw new Error("search still advertises Kiri");
   if (search.getAttribute("data-i18n-label") !== "Search Kiri") throw new Error("legacy translation key was renamed");
 });
+t("pinned Nix release state never advertises Kiri downloads or automatic updates", () => {
+  const oldState = ui.updState, oldUpdate = ui.upd;
+  try {
+    ui.updState = { state: "nix", current: "0.2.0" };
+    ui.upd = null;
+    const html = aboutUpdate("0.2.0");
+    if (!html.includes("Nix")) throw new Error("pinned Nix identity not shown");
+    if (html.includes("data-updcheck") || html.includes("data-updauto") || html.includes("runkiri.com/releases"))
+      throw new Error("inherited release actions still visible");
+  } finally {
+    ui.updState = oldState;
+    ui.upd = oldUpdate;
+  }
+});
+t("diagnostic command labels say Caskel without changing translation keys", () => {
+  const s = brandedCliLabel(tr("A kiri command"));
+  if (!/Caskel/.test(s) || /\bkiri\b/i.test(s)) throw new Error(s);
+});
+t("Linux diagnostics explains that Kiri Cloud is external and opt-in", () => {
+  const pane = diagPane();
+  if (!pane.includes("Kiri Cloud") || !pane.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
+    throw new Error("external recipient or opt-in not disclosed");
+  reportDialog("send");
+  try {
+    const text = document.querySelector("#rp")?.textContent || "";
+    if (!text.includes("upstream-operated") || !text.includes("not Caskel") || !text.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"))
+      throw new Error("report recipient disclosure missing");
+  } finally {
+    document.querySelector("#rp [data-close]")?.click();
+  }
+});
+t("Linux crash card never promises uploads without the external-cloud opt-in", () => {
+  const before = ui.crash;
+  try {
+    ui.crash = { part: "cli", time: "2026-11-16T19:00:00Z", count: 1,
+                 crashReports: true, sent: false, hidden: false };
+    const html = crashCard();
+    if (!html.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1") || !html.includes("Caskel"))
+      throw new Error("crash card has misleading legacy provider status");
+  } finally {
+    ui.crash = before;
+  }
+});
 t("upstream Kiri Cloud and Kiri Share are not falsely rebranded", () => {
   if (caskelBrand("Kiri Cloud; Kiri Share") !== "Kiri Cloud; Kiri Share") throw new Error("falsely named a Caskel cloud");
 });

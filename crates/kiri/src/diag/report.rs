@@ -470,7 +470,7 @@ fn report_cli(args: &[String]) -> io::Result<()> {
     if send_it {
         let id = send("report", super::part(), SystemTime::now(), &text)?;
         super::info!("report sent", id = id);
-        println!("sent to Kiri Cloud as {id}: quote it when you write to us");
+        println!("sent to upstream-operated Kiri Cloud as {id}; quote this ID when contacting that service");
     }
     Ok(())
 }
