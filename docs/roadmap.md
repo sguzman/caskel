@@ -36,24 +36,22 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 
 ## Current priorities
 
-**Maintainer priority gate (2026-11-16): BRANDING FIRST.** Before any further
-kernel, Docker migration, host regression or unrelated feature development,
-complete and verify the remaining Caskel source/CLI/UI/documentation
-branding. The owner corrected the GitHub About description and removed the
-inherited `runkiri.com` homepage on 2026-11-17; these are no longer blockers.
-The open migration and host-test PRs #23 and #35 are parked; do **not** merge
-or extend them until the branding gate is explicitly closed. The owner has now
-excluded cloud account, sharing/tunnels, and diagnostic uploads from Caskel:
-verify the Linux UI removes these controls, CLI rejects them, and outbound
-Share transport is blocked regardless of legacy opt-in or saved tokens. Real Linux GTK
-desktop acceptance remains pending, distinct from headless language/browser
-checks and a compile-only GTK check. The Linux Resources GUI must not expose
-inherited VM restart actions or misleading macOS networking descriptions. Follow
-[the native GTK acceptance procedure](gtk-desktop-acceptance.md). Keep
-historical Kiri copyright attribution, certificate/storage identities and
-compatibility APIs until safe migration.
+**Branding-first gate: ACCEPTED on 2026-11-17, with documented limits.**
+PRs #40–#42 removed the inherited cloud feature from Linux, made VM-style
+resource controls read-only, and suppressed the startup Share request. All
+required CI workflows passed. The owner exercised the Linux GTK GUI on
+Hyprland: Caskel identity, dashboard, local Diagnostics, read-only Resources,
+Dark/Light/System themes and Spanish switching. Translation quality in all 37
+languages, RTL/CJK desktop visuals, Linux Network-pane visuals and the last
+startup-toast fix were not individually manually retested. See the
+[desktop acceptance record](gtk-desktop-acceptance.md#real-desktop-acceptance-record--2026-11-17).
+The recorded limitations do **not** justify additional compulsory user
+localization QA. The 58/100 score is unchanged.
 
-**After that branding gate is closed**, resume these engineering priorities:
+Migration PRs #23 and #35 remain **unmerged** and must be re-reviewed against
+current main and the source-host safety boundary before work resumes.
+
+**Now that branding acceptance is recorded**, follow these engineering priorities:
 
 1. Finish legally safe disposal/audit of old guest-kernel build dependencies. Preserve required GPL corresponding-source artifacts and `crates/kiri-vmm/src/process.rs` (now the `caskel-agent-transport` package).
 2. Keep canonical Caskel identity and `CASKEL_*` configuration while preserving tested historical `KIRI_*`, `/kiri/*` and DNS/TLS interfaces until safe migration. The GitHub repository About description/homepage were corrected by the owner on 2026-11-17.
