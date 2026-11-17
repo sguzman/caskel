@@ -105,6 +105,35 @@ fn source_port_reuse(containers: &[Value]) -> Vec<Value> {
     conflicts
 }
 
+/// Potential overlap in configured source and target published host ports.
+///// Even if both engines currently run, this is not a live socket-occupancy
+/// probe and must not be interpreted as permission to take over a port.
+fn source_target_port_overlap(source: &[Value], target: &[Value]) -> Vec<Value> {
+    let source_leases = port_leases(source);
+    let target_leases = port_leases(target);
+    let mut conflicts = BTreeSet::new();
+    for a in &source_leases {
+        for b in &target_leases {
+            if a.protocol == b.protocol
+                && a.port == b.port
+                && (a.address == b.address || wildcard(&a.address) || wildcard(&b.address))
+            {
+                conflicts.insert((a.protocol.clone(), a.port, a.container.clone(),
+                    b.container.clone(), a.address.clone(), b.address.clone()));
+            }
+        }
+    }
+    conflicts.into_iter().map(|(protocol, port, source, target, source_ip, target_ip)| json!({
+        "protocol": protocol,
+        "host_port": port,
+        "source_container": source,
+        "target_container": target,
+        "source_host_ip": source_ip,
+        "target_host_ip": target_ip,
+        "reason": "both engines have configured bindings that may overlap; source release and live host occupancy need verification"
+    })).collect()
+}
+
 fn findings(container: &Value) -> Vec<&'static str> {
     let mut notes = BTreeSet::new();
     notes.insert("image_must_be_transferred_or_pulled_separately");
@@ -158,7 +187,21 @@ fn findings(container: &Value) -> Vec<&'static str> {
 /// live port occupancy, image compatibility and safe database consistency
 /// have not been checked; therefore every workload remains blocked.
 pub(super) fn preview(inventory: &Value) -> io::Result<Value> {
+    preview_optional_target(inventory, None)
+}
+
+/// Optional opt-in target inspection remains non-mutating and NEVER marks
+/// any workload ready, even if the target is empty or no overlaps are found.
+pub(super) fn preview_with_target(inventory: &Value, target: &Value) -> io::Result<Value> {
+    preview_optional_target(inventory, Some(target))
+}
+
+fn preview_optional_target(inventory: &Value, target: Option<&Value>) -> io::Result<Value> {
     let containers = array(&inventory["containers"], "inventory containers")?;
+    let target_containers = match target {
+        Some(v) => array(&v["containers"], "target containers")?.as_slice(),
+        None => &[],
+    };
     let mut workloads = Vec::new();
     for c in containers {
         workloads.push(json!({
@@ -182,15 +225,18 @@ pub(super) fn preview(inventory: &Value) -> io::Result<Value> {
         "mode": "read_only_dry_run",
         "source_socket": string(inventory, "source_socket"),
         "docker_version": string(inventory, "docker_version"),
-        "target_caskel_inspected": false,
+        "target_caskel_inspected": target.is_some(),
+        "target_socket": target.map(|v| string(v, "target_socket")),
+        "target_container_count": target.map(|_| target_containers.len()),
+        "potential_source_target_port_overlap": source_target_port_overlap(containers, target_containers),
         "ready_to_apply": false,
         "workload_count": workloads.len(),
         "compose_projects": strings(&inventory["compose_projects"]),
         "potential_source_port_reuse": source_port_reuse(containers),
         "workloads": workloads,
         "unverified_requirements": [
-            "target Caskel images, capabilities and network/IPAM compatibility not checked",
-            "target and host port occupancy not checked; source published ports must be released deliberately",
+            "target Caskel image/platform support, capabilities and network/IPAM compatibility not fully checked",
+            "live host port occupancy (including non-container processes) not checked; source ports must be released deliberately",
             "target storage ownership, permissions and available space not checked",
             "database and other active write-heavy services require application-consistent backup and tested restore",
             "Compose secrets, dependency order and external resources need original Compose/configuration review",
@@ -281,6 +327,29 @@ mod tests {
         source["containers"][0]["labels"] = json!({"token": "SENSITIVE-SECRET"});
         let report = preview(&source).unwrap().to_string();
         assert!(!report.contains("SENSITIVE-SECRET"));
+    }
+
+    #[test]
+    fn optional_target_flags_cross_engine_overlap_but_never_approves_cutover() {
+        let source = fixture();
+        let target = json!({
+            "target_socket": "/run/caskel/docker.sock",
+            "containers": [{
+                "name": "existing", "state": "exited",
+                "configured_port_bindings": [{
+                    "container": "9000/tcp",
+                    "hosts": [{"host_ip": "0.0.0.0", "host_port": "15432"}]
+                }],
+                "published_ports": []
+            }]
+        });
+        let plan = preview_with_target(&source, &target).unwrap();
+        assert_eq!(plan, preview_with_target(&source, &target).unwrap());
+        assert_eq!(plan["target_caskel_inspected"], true);
+        assert_eq!(plan["target_container_count"], 1);
+        assert_eq!(plan["ready_to_apply"], false);
+        assert_eq!(plan["potential_source_target_port_overlap"].as_array().unwrap().len(), 2);
+        assert_eq!(plan["workloads"][0]["status"], "blocked_pending_manual_validation");
     }
 
     #[test]
