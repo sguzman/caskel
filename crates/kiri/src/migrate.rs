@@ -94,6 +94,91 @@ fn http_response(raw: &[u8]) -> io::Result<(u16, Vec<u8>)> {
     }
 }
 
+/// Read exactly one framed HTTP response. The 16 KiB header and 64 MiB
+/// total response bounds apply to both Docker and persistent Caskel sockets.
+/// Lack of HTTP framing falls back to EOF only for older close-only servers.
+fn read_framed_response(conn: UnixStream) -> io::Result<(u16, Vec<u8>)> {
+    use std::io::{BufRead, BufReader};
+
+    let mut reader = BufReader::new(conn);
+    let mut raw = Vec::new();
+    while !raw.ends_with(b"\r\n\r\n") {
+        let mut byte = [0_u8; 1];
+        reader.read_exact(&mut byte)?;
+        raw.push(byte[0]);
+        if raw.len() > 16 * 1024 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                "Docker HTTP header exceeds 16 KiB"));
+        }
+    }
+    let header = std::str::from_utf8(&raw[..raw.len() - 4])
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut length: Option<usize> = None;
+    let mut chunked = false;
+    for line in header.lines().skip(1) {
+        if let Some((key, value)) = line.split_once(':') {
+            if key.eq_ignore_ascii_case("content-length") {
+                length = Some(value.trim().parse::<usize>()
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData,
+                        "invalid HTTP content length"))?);
+            } else if key.eq_ignore_ascii_case("transfer-encoding")
+                && value.to_ascii_lowercase().contains("chunked")
+            {
+                chunked = true;
+            }
+        }
+    }
+    if chunked && length.is_some() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData,
+            "ambiguous HTTP transfer encoding"));
+    }
+    if chunked {
+        loop {
+            let mut size_line = Vec::new();
+            if reader.read_until(b'\n', &mut size_line)? == 0
+                || size_line.len() > 1024
+                || !size_line.ends_with(b"\r\n")
+            {
+                return Err(io::Error::new(io::ErrorKind::InvalidData,
+                    "invalid HTTP chunk header"));
+            }
+            let size = std::str::from_utf8(&size_line[..size_line.len() - 2]).ok()
+                .and_then(|s| usize::from_str_radix(s.split(';').next().unwrap_or(""), 16).ok())
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData,
+                    "invalid HTTP chunk length"))?;
+            if size > MAX_RESPONSE as usize - raw.len() || size_line.len() + 2 > MAX_RESPONSE as usize - raw.len() - size {
+                return Err(io::Error::new(io::ErrorKind::InvalidData,
+                    "Docker response exceeds 64 MiB"));
+            }
+            raw.extend_from_slice(&size_line);
+            if size == 0 { break; }
+            let mut data = vec![0; size + 2];
+            reader.read_exact(&mut data)?;
+            if !data.ends_with(b"\r\n") {
+                return Err(io::Error::new(io::ErrorKind::InvalidData,
+                    "invalid HTTP chunk terminator"));
+            }
+            raw.extend_from_slice(&data);
+        }
+    } else if let Some(n) = length {
+        if n > MAX_RESPONSE as usize - raw.len() {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                "Docker response exceeds 64 MiB"));
+        }
+        let at = raw.len();
+        raw.resize(at + n, 0);
+        reader.read_exact(&mut raw[at..])?;
+    } else {
+        let remaining = MAX_RESPONSE + 1 - raw.len() as u64;
+        (&mut reader).take(remaining).read_to_end(&mut raw)?;
+        if raw.len() as u64 > MAX_RESPONSE {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                "Docker response exceeds 64 MiB"));
+        }
+    }
+    http_response(&raw)
+}
+
 /// The sole transport method. Routes are built locally with validated IDs.
 fn get(socket: &Path, route: &str) -> io::Result<Value> {
     if !route.starts_with('/') || !route.is_ascii() || route.bytes().any(|c| c < 0x20) {
@@ -103,12 +188,10 @@ fn get(socket: &Path, route: &str) -> io::Result<Value> {
     conn.set_read_timeout(Some(Duration::from_secs(30)))?;
     conn.set_write_timeout(Some(Duration::from_secs(30)))?;
     conn.write_all(format!("GET {route} HTTP/1.1\r\nHost: docker\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes())?;
-    let mut raw = Vec::new();
-    (&mut conn).take(MAX_RESPONSE + 1).read_to_end(&mut raw)?;
-    if raw.len() as u64 > MAX_RESPONSE {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Docker response exceeds 64 MiB"));
-    }
-    let (status, body) = http_response(&raw)?;
+    // Docker may close after its response; Caskel deliberately keeps the
+    // HTTP connection alive. Read to the response framing rather than
+    // waiting for EOF (which would time out on Caskel after 30 seconds).
+    let (status, body) = read_framed_response(conn)?;
     if status != 200 {
         return Err(io::Error::other(format!("Docker GET {route}: HTTP {status}: {}",
             String::from_utf8_lossy(&body).chars().take(160).collect::<String>())));
@@ -390,6 +473,33 @@ mod tests {
         assert_eq!(status, 200);
         assert_eq!(body, b"{\"ok\":true}");
         assert!(http_response(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nb\r\nx").is_err());
+    }
+
+    #[test]
+    fn framed_get_finishes_without_waiting_for_keepalive_socket_to_close() {
+        use std::os::unix::net::UnixListener;
+        use std::sync::mpsc;
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!("caskel-framed-get-{}-{}.sock",
+            std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+        let listener = UnixListener::bind(&path).unwrap();
+        let (release, held) = mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let n = conn.read(&mut request).unwrap();
+            assert!(request[..n].starts_with(b"GET /version HTTP/1.1\r\n"));
+            conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\n{\"x\":1}").unwrap();
+            // Stay connected until GET has returned. An EOF-based reader
+            // cannot signal us and incorrectly waits for this timeout.
+            held.recv_timeout(Duration::from_secs(2)).is_ok()
+        });
+        let result = get(&path, "/version").unwrap();
+        assert_eq!(result["x"], 1);
+        release.send(()).unwrap();
+        assert!(server.join().unwrap(), "GET waited for peer EOF instead of content length");
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
