@@ -1614,7 +1614,8 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
         | "shareopen" | "sharelogin" | "sharecancel" | "sharelogout"
             if cfg!(target_os = "linux") =>
         {
-            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Cloud sharing is disabled in Caskel."))
+            emit(notice("error", "Cloud sharing is disabled in Caskel."));
+            Ok(())
         }
         // Inherited cloud implementation, unreachable in the Linux window.
         "shares" => {
@@ -2014,7 +2015,8 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             Ok(())
         }
         "diagsend" | "diagsendcrash" if cfg!(target_os = "linux") => {
-            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Caskel diagnostics are local-only."))
+            emit(notice("error", "Caskel diagnostics are local-only."));
+            Ok(())
         }
         "diagsend" => {
             let containers = msg.value["containers"] == true;
