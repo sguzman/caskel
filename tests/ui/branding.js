@@ -15,6 +15,20 @@ t("search combobox has a Caskel accessible name while preserving its translation
   if (!search || !search.getAttribute("aria-label")?.includes("Caskel")) throw new Error("search still advertises Kiri");
   if (search.getAttribute("data-i18n-label") !== "Search Kiri") throw new Error("legacy translation key was renamed");
 });
+t("pinned Nix release state never advertises Kiri downloads or automatic updates", () => {
+  const oldState = ui.updState, oldUpdate = ui.upd;
+  try {
+    ui.updState = { state: "nix", current: "0.2.0" };
+    ui.upd = null;
+    const html = aboutUpdate("0.2.0");
+    if (!html.includes("Nix")) throw new Error("pinned Nix identity not shown");
+    if (html.includes("data-updcheck") || html.includes("data-updauto") || html.includes("runkiri.com/releases"))
+      throw new Error("inherited release actions still visible");
+  } finally {
+    ui.updState = oldState;
+    ui.upd = oldUpdate;
+  }
+});
 t("upstream Kiri Cloud and Kiri Share are not falsely rebranded", () => {
   if (caskelBrand("Kiri Cloud; Kiri Share") !== "Kiri Cloud; Kiri Share") throw new Error("falsely named a Caskel cloud");
 });
