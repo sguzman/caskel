@@ -61,7 +61,7 @@ t("Linux crash card is local-only", () => {
     ui.crash = { part: "cli", time: "2026-11-16T19:00:00Z", count: 1,
                  crashReports: true, sent: false, hidden: false };
     const html = crashCard();
-    if (html.includes("data-crashcard=\"send\"") || html.includes("Kiri Cloud") || !html.includes("Details"))
+    if (html.includes("data-crashcard=\"send\"") || html.includes("Kiri Cloud") || !html.includes(tr("Details")))
       throw new Error("crash card still offers upload");
   } finally {
     ui.crash = before;
