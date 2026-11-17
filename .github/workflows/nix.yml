@@ -31,6 +31,11 @@ jobs:
           git diff --exit-code -- flake.lock
       - name: Evaluate and build
         run: |
+          # Historical GPL sources stay available to the repository, even
+          # though the Nix derivation must not include the guest kernel tree.
+          test -f guest/kernel/SOURCE_OFFER.md
+          test -f guest/kernel/build.sh
+          test -f scripts/ci/kernel-source.sh
           nix flake check --show-trace
           nix build .#caskel --show-trace
           test -x result/bin/caskel

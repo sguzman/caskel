@@ -33,6 +33,13 @@ the `caskel` Cargo package; the Linux agent is `caskel-init`. An old
 deployments. The historical `crates/kiri-*` source directory names do
 not determine the public Cargo package names.
 
+The historical `guest/kernel/` tree is **retained in Git**, including its
+GPL source offer, patches and build scripts, but excluded from this Nix
+package's clean source input. A build-time assertion checks that no `guest/`
+directory is present while the Rust agent transport remains available. This
+does not assert or alter the historical upstream source-offer obligations.
+`tests/kernel-features.sh` is a separate host-kernel capability probe.
+
 The optional Linux GUI is not packaged in this minimal Nix build.
 Privileged runtime tests cannot run in the Nix build sandbox. GitHub Actions
 checks the reproducible package and unit file, runs unprivileged Rust unit
