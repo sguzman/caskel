@@ -9,7 +9,7 @@ use caskel_proto::{Stream, run_flags};
 
 use crate::guest::{BootOptions, Guest, RunRequest};
 
-const USAGE: &str = "usage: kiri raw run [--rm] [-e KEY=VALUE]... [-u USER] [-w DIR] [--timings] IMAGE [COMMAND [ARG...]]
+const USAGE: &str = "usage: caskel raw run [--rm] [-e KEY=VALUE]... [-u USER] [-w DIR] [--timings] IMAGE [COMMAND [ARG...]]
 
 Containers get their own network namespace with only loopback for now
 (like docker run --network none); bridged networking comes next.";
@@ -146,7 +146,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
 
     if o.timings {
         let ms = |d: Duration| d.as_secs_f64() * 1e3;
-        eprintln!("kiri raw run timings");
+        eprintln!("caskel raw run timings");
         eprintln!("  VM boot                  {:7.1} ms", ms(booted));
         eprintln!("  layers ready ({sent} sent)    {:7.1} ms", ms(layers_ready - booted));
         eprintln!("  container start → exit   {:7.2} ms  (guest: setup {:.2} ms, process {:.2} ms)",
@@ -154,7 +154,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
         eprintln!("  total                    {:7.1} ms", ms(t0.elapsed()));
     }
     if let Err(e) = shutdown {
-        eprintln!("kiri: shutdown: {e}");
+        eprintln!("caskel: shutdown: {e}");
     }
     std::process::exit(r.code);
 }
