@@ -1860,9 +1860,17 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             std::thread::spawn(|| resources(None));
             Ok(())
         }
+        "setresources" if cfg!(target_os = "linux") => {
+            emit(notice("error", &tr("(read-only)")));
+            Ok(())
+        }
         "setresources" => {
             let body = msg.value;
             std::thread::spawn(move || resources(Some(body)));
+            Ok(())
+        }
+        "restartvm" if cfg!(target_os = "linux") => {
+            emit(notice("error", &tr("(read-only)")));
             Ok(())
         }
         "restartvm" => {
