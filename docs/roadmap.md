@@ -42,7 +42,10 @@ complete and verify the remaining Caskel source/CLI/UI/documentation
 branding. The owner corrected the GitHub About description and removed the
 inherited `runkiri.com` homepage on 2026-11-17; these are no longer blockers.
 The open migration and host-test PRs #23 and #35 are parked; do **not** merge
-or extend them until the branding gate is explicitly closed. Real Linux GTK
+or extend them until the branding gate is explicitly closed. The owner has now
+excluded cloud account, sharing/tunnels, and diagnostic uploads from Caskel:
+verify the Linux UI removes these controls, CLI rejects them, and outbound
+Share transport is blocked regardless of legacy opt-in or saved tokens. Real Linux GTK
 desktop acceptance remains pending, distinct from headless language/browser
 checks and a compile-only GTK check. Follow
 [the native GTK acceptance procedure](gtk-desktop-acceptance.md). Keep
