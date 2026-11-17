@@ -77,7 +77,7 @@ fn pick_port(want: u16, lan: bool) -> io::Result<u16> {
     let last = want.saturating_add(PORT_TRIES);
     (want..=last).find(|&p| port_free(p, lan)).ok_or_else(|| {
         io::Error::other(format!(
-            "ports {want}–{last} are all in use on this Mac, so the cluster's API server has none to take. Choose another in Settings → Kubernetes (or `kiri k8s set --port N`), or stop what holds them, such as another Kiri's Kubernetes"
+            "ports {want}–{last} are all in use on this host, so the cluster's API server has none to take. Choose another in Settings → Kubernetes (or `kiri k8s set --port N`), or stop what holds them, such as another Kiri's Kubernetes"
         ))
     })
 }
@@ -125,7 +125,7 @@ fn set(args: &[String]) -> io::Result<()> {
                 };
                 cfg.port = (port != API_PORT).then_some(port);
             }
-            _ => return Err(io::Error::other("usage: kiri k8s set [--lan on|off] [--tls-san NAME,…] [--port N]")),
+            _ => return Err(io::Error::other("usage: caskel k8s set [--lan on|off] [--tls-san NAME,…] [--port N]")),
         }
     }
     ensure_daemon()?;
@@ -183,7 +183,7 @@ fn ensure_daemon() -> io::Result<()> {
     if client::alive() {
         return Ok(());
     }
-    Err(io::Error::other("kiri daemon is not running: open Kiri.app or run `kiri daemon`"))
+    Err(io::Error::other("Caskel daemon is not running; start caskel.service or run `caskel daemon`"))
 }
 
 fn ok(r: io::Result<client::Response>) -> io::Result<client::Response> {
@@ -212,13 +212,13 @@ fn run_inner(args: &[String]) -> io::Result<()> {
         Some("stop") => {
             ensure_daemon()?;
             ok(client::request("POST", &format!("/containers/{NAME}/stop"), None))?;
-            println!("Kubernetes stopped (its state is kept; `kiri k8s start` resumes it)");
+            println!("Kubernetes stopped (its state is kept; `caskel k8s start` resumes it)");
             Ok(())
         }
         Some("status") => status(),
         Some("delete") => delete(),
         Some("set") => set(&args[1..]),
-        _ => Err(io::Error::other("usage: kiri k8s start [--use] | stop | status | delete | set [--lan on|off] [--tls-san NAME,…] [--port N]")),
+        _ => Err(io::Error::other("usage: caskel k8s start [--use] | stop | status | delete | set [--lan on|off] [--tls-san NAME,…] [--port N]")),
     }
 }
 
@@ -305,7 +305,7 @@ fn start(use_context: bool) -> io::Result<()> {
             }
         }
         if Instant::now() > deadline {
-            return Err(io::Error::other(format!("the node was not ready after 3 minutes; see `docker --context kiri logs {NAME}`")));
+            return Err(io::Error::other(format!("the node was not ready after 3 minutes; see `caskel logs {NAME}`")));
         }
         std::thread::sleep(Duration::from_secs(1));
     }
@@ -350,7 +350,7 @@ fn host_manifest() -> String {
     let addr = crate::daemon::ports::HOST_ADDR;
     let zones: Vec<String> = HOST_NAMES.iter().map(|n| format!("{n}:53")).collect();
     format!(
-        "# Written by Kiri at each `kiri k8s start`: pods resolve the host's names, as containers do.\n\
+        "# Written by Caskel at each `caskel k8s start`: pods resolve the host's names, as containers do.\n\
 apiVersion: v1\n\
 kind: ConfigMap\n\
 metadata:\n\
@@ -401,7 +401,7 @@ fn host_names() -> io::Result<bool> {
 
 /// The cluster's kubeconfig, renamed to `kiri`, at ~/.kiri/kubeconfig, and
 /// its cluster, user and context put into kubectl's file (src/kubeconfig.rs),
-/// with no kubectl needed: the app's `kiri k8s start` runs with launchd's
+/// with no kubectl needed: the app's `caskel k8s start` runs with launchd's
 /// PATH, where none is found. Whether kubectl's file changed.
 fn kubeconfig(use_context: bool, port: u16) -> io::Result<bool> {
     let ours = crate::kubeconfig::from_k3s(&k3s_yaml()?, CONTEXT.get(), port);
@@ -421,7 +421,7 @@ fn kubeconfig(use_context: bool, port: u16) -> io::Result<bool> {
 }
 
 /// The context of a cluster that is already running, as at the engine's
-/// start, which restarts the node without `kiri k8s start`: written once
+/// start, which restarts the node without `caskel k8s start`: written once
 /// k3s has its kubeconfig (within `wait`), and rewritten if its port or
 /// certificate changed. Nothing when there is no running node.
 pub(crate) fn sync(wait: Duration) -> io::Result<bool> {
@@ -487,7 +487,7 @@ pub(crate) fn forget() {
 fn status() -> io::Result<()> {
     ensure_daemon()?;
     if !exists()? {
-        println!("Kubernetes: not created (kiri k8s start)");
+        println!("Kubernetes: not created (caskel k8s start)");
         return Ok(());
     }
     let info = client::get(&format!("/containers/{NAME}/json"))?;
