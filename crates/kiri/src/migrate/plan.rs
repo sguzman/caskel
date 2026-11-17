@@ -533,7 +533,7 @@ mod tests {
         })];
         let report = preview_with_host_storage(&source, None, None, &storage).unwrap();
         assert_eq!(report["local_host_storage_inspected"], true);
-        assert_eq!(report["observed_source_storage"], storage);
+        assert_eq!(report["observed_source_storage"], json!(storage));
         assert_eq!(report["local_host_listeners_inspected"], false);
         assert_eq!(report["ready_to_apply"], false);
         assert!(report["workloads"].as_array().unwrap().iter()
