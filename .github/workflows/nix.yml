@@ -122,7 +122,9 @@ jobs:
           sudo "$(command -v nix)" profile install --profile /nix/var/nix/profiles/caskel "$(realpath result)"
           sudo systemctl link /nix/var/nix/profiles/caskel/lib/systemd/system/caskel.service
           sudo systemctl start caskel.service
-          trap 'sudo systemctl stop caskel.service || true' EXIT
+          # Keep the temporary non-Caskel host listener from surviving test failures.
+          port_owner_pid=
+          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; sudo systemctl stop caskel.service || true' EXIT
           sudo systemctl is-active --quiet caskel.service
           test -S /run/caskel/docker.sock
           BIN=/nix/var/nix/profiles/caskel/bin/caskel
@@ -194,8 +196,9 @@ jobs:
           # millisecond. Retry *all* failures (including TCP reset), but only
           # accept an actual HTTP 200 page with Nginx's expected content.
           check_caskel_port() {
+            local port=${1:-18765}
             for attempt in $(seq 1 12); do
-              if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18765/ 2>/dev/null \
+              if curl -fsS --connect-timeout 1 --max-time 2 "http://127.0.0.1:$port/" 2>/dev/null \
                 | grep -Fq 'Welcome to nginx!'; then
                 return 0
               fi
@@ -261,6 +264,49 @@ jobs:
             sh -c 'nslookup caskel-ci-dns-peer >/dev/null; if nslookup caskel-ci-port >/dev/null 2>&1; then echo "stale HTTP peer DNS after removal" >&2; exit 1; fi'
           if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18765/ >/dev/null 2>&1; then
             echo 'Caskel did not release published port after container removal' >&2
+            exit 1
+          fi
+          # Coexistence failure/recovery: a non-Caskel process already owns
+          # another loopback port. Never displace the owner's listener, even
+          # when Caskel's container and bridge are otherwise valid.
+          printf '%s\n' caskel-ci-owner > "$RUNNER_TEMP/caskel-ci-port-owner"
+          python3 -m http.server 18766 --bind 127.0.0.1 --directory "$RUNNER_TEMP" > /dev/null 2>&1 &
+          port_owner_pid=$!
+          for attempt in $(seq 1 12); do
+            if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18766/caskel-ci-port-owner 2>/dev/null \
+              | grep -qx caskel-ci-owner; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18766/caskel-ci-port-owner | grep -qx caskel-ci-owner
+          if output=$(sudo "$BIN" run -d --name caskel-ci-host-port-collision --network caskel-ci-dns \
+            -p 127.0.0.1:18766:80 alpine:3.21 sleep 1d 2>&1); then
+            echo 'Caskel accepted a TCP host port owned by another process' >&2
+            sudo "$BIN" rm -f caskel-ci-host-port-collision || true
+            exit 1
+          fi
+          printf 'Expected external host-port collision: %s\n' "$output"
+          # The failed Caskel bind cannot kill or replace the original owner.
+          curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18766/caskel-ci-port-owner | grep -qx caskel-ci-owner
+          sudo "$BIN" rm -f caskel-ci-host-port-collision >/dev/null 2>&1 || true
+          kill "$port_owner_pid"
+          wait "$port_owner_pid" || true
+          port_owner_pid=
+          # Once the original process exits, the exact port must be reusable
+          # by Caskel, rather than stuck in a stale reservation.
+          sudo "$BIN" run -d --name caskel-ci-after-port-release --network caskel-ci-dns \
+            -p 127.0.0.1:18766:80 nginx:1.28-alpine
+          if ! check_caskel_port 18766; then
+            echo 'Caskel failed to publish host port after external owner exited' >&2
+            sudo "$BIN" ps -a || true
+            sudo "$BIN" logs caskel-ci-after-port-release || true
+            sudo ss -ltnp | grep -E '(:18766|State)' || true
+            exit 1
+          fi
+          sudo "$BIN" rm -f caskel-ci-after-port-release
+          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18766/ >/dev/null 2>&1; then
+            echo 'Caskel left the recovered host listener open after container removal' >&2
             exit 1
           fi
           test "$docker_containers_before_ports" = "$(docker ps -aq | sort)"
