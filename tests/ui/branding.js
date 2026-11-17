@@ -46,6 +46,18 @@ t("Linux diagnostics explains that Kiri Cloud is external and opt-in", () => {
     document.querySelector("#rp [data-close]")?.click();
   }
 });
+t("Linux crash card never promises uploads without the external-cloud opt-in", () => {
+  const before = ui.crash;
+  try {
+    ui.crash = { part: "cli", time: "2026-11-16T19:00:00Z", count: 1,
+                 crashReports: true, sent: false, hidden: false };
+    const html = crashCard();
+    if (!html.includes("CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1") || !html.includes("Caskel"))
+      throw new Error("crash card has misleading legacy provider status");
+  } finally {
+    ui.crash = before;
+  }
+});
 t("upstream Kiri Cloud and Kiri Share are not falsely rebranded", () => {
   if (caskelBrand("Kiri Cloud; Kiri Share") !== "Kiri Cloud; Kiri Share") throw new Error("falsely named a Caskel cloud");
 });
