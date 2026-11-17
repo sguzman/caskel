@@ -71,7 +71,7 @@ usage: caskel COMMAND          docker's commands, on Caskel: caskel run, ps, exe
                              logs, stop, rm, images, pull, build, compose…
        caskel daemon
        caskel bridge [--socket PATH]
-       caskel migrate docker --list|--dry-run [--socket PATH] [--json]   read-only migration preview
+       caskel migrate docker --list|--dry-run [--socket PATH] [--target-socket PATH] [--json]   read-only migration preview
        caskel ui [--start] [--view containers|images|volumes|networks]
        caskel build-with [docker|caskel]   which builder docker build uses
        caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [-n N]
