@@ -127,9 +127,10 @@ jobs:
           udp_owner_pid=
           docker_owner_name=
           docker_owner_image_added=
+          docker_storage_name=
           # This test runs only on a disposable GitHub CI VM. Never remove a
           # pre-existing Docker image or a user's unrelated Docker container.
-          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; if [ -n "$udp_owner_pid" ]; then kill "$udp_owner_pid" 2>/dev/null || true; fi; if [ -n "$docker_owner_name" ]; then docker rm -f "$docker_owner_name" >/dev/null 2>&1 || true; fi; if [ -n "$docker_owner_image_added" ]; then docker image rm "$docker_owner_image_added" >/dev/null 2>&1 || true; fi; sudo systemctl stop caskel.service || true' EXIT
+          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; if [ -n "$udp_owner_pid" ]; then kill "$udp_owner_pid" 2>/dev/null || true; fi; if [ -n "$docker_owner_name" ]; then docker rm -f "$docker_owner_name" >/dev/null 2>&1 || true; fi; if [ -n "$docker_owner_image_added" ]; then docker image rm "$docker_owner_image_added" >/dev/null 2>&1 || true; fi; if [ -n "$docker_storage_name" ]; then docker volume rm "$docker_storage_name" >/dev/null 2>&1 || true; fi; sudo systemctl stop caskel.service || true' EXIT
           sudo systemctl is-active --quiet caskel.service
           test -S /run/caskel/docker.sock
           BIN=/nix/var/nix/profiles/caskel/bin/caskel
@@ -550,6 +551,36 @@ jobs:
             echo 'host storage observation incorrectly accepted during --list' >&2
             exit 1
           fi
+          # Live Docker source named-volume observation on the disposable CI
+          # host. Only this named fixture volume can be created or deleted.
+          docker_volumes_before=$(docker volume ls -q | sort)
+          docker_storage_name=caskel-ci-source-observation
+          docker volume create "$docker_storage_name"
+          docker_storage_path=$(docker volume inspect -f '{{.Mountpoint}}' "$docker_storage_name")
+          sudo "$BIN" migrate docker --dry-run --inspect-host-storage --json > "$RUNNER_TEMP/source-volume-preview.json"
+          python3 - "$RUNNER_TEMP/source-volume-preview.json" "$docker_storage_path" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              report = json.load(f)
+          assert report["ready_to_apply"] is False
+          assert report["local_host_storage_inspected"] is True
+          assert report["target_caskel_inspected"] is False
+          matches = [x for x in report["observed_source_storage"]
+                     if x["kind"] == "named_volume" and x["path"] == sys.argv[2]]
+          assert len(matches) == 1, matches
+          observation = matches[0]
+          assert observation["status"] == "observed", observation
+          assert observation["file_type"] == "directory", observation
+          assert isinstance(observation["uid"], int)
+          assert isinstance(observation["gid"], int)
+          assert isinstance(observation["filesystem_available_bytes"], int)
+          assert all(w["status"] == "blocked_pending_manual_validation"
+                     for w in report["workloads"])
+          PY
+          docker volume rm "$docker_storage_name"
+          docker_storage_name=
+          test "$docker_volumes_before" = "$(docker volume ls -q | sort)"
           if sudo "$BIN" migrate docker --dry-run --target-socket /var/run/docker.sock >/dev/null 2>&1; then
             echo 'Docker source accepted as a Caskel target' >&2
             exit 1
