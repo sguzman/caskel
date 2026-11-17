@@ -62,6 +62,11 @@ backup and restore, bind/volume ownership, security/device capabilities,
 custom network/DNS requirements, Compose dependencies, restart/health
 checks, and host-port rebinds. It flags *potential source-side* published
 port overlap, including stopped containers with configured bindings.
+Docker containers with explicit DNS resolvers, DNS search domains, resolver
+options or extra-host entries are also flagged for manual resolution review.
+Only boolean presence indicators are retained; their values, which may include
+private hostnames and addresses, never enter the inventory or dry-run report.
+The preview cannot infer equivalent Caskel DNS semantics or approve a cutover.
 
 **This is NOT a migration action, deployable execution plan, or compatibility
 certificate.** All workloads report `blocked_pending_manual_validation`.
