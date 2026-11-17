@@ -75,8 +75,9 @@ The [verified development roadmap](docs/roadmap.md) tracks full-lifecycle milest
 To **optionally** inspect the separate Caskel target's configured host ports
 without changing either engine, use
 `caskel migrate docker --dry-run --target-socket /run/caskel/docker.sock`.
-This reads the target's container metadata using GET requests only and
-flags *potential* cross-engine host-port overlap. Without this explicit flag,
+This reads the target's container and network metadata using GET requests only
+and flags *potential* cross-engine host-port and IPv4/IPv6 subnet overlap.
+Without this explicit flag,
 the target is not inspected. This does not check arbitrary host processes,
 network/IPAM compatibility, backup integrity, or authorize a cutover.
 Treat the JSON output as private infrastructure metadata. Caskel does not move or stop existing Docker services.
