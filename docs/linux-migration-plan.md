@@ -65,10 +65,26 @@ port overlap, including stopped containers with configured bindings.
 
 **This is NOT a migration action, deployable execution plan, or compatibility
 certificate.** All workloads report `blocked_pending_manual_validation`.
-The target Caskel inventory, actual host-port occupancy, application-consistent
-data and rollback readiness have **not** been verified. The JSON lists
+By default the target Caskel engine is **not** inspected. When explicitly
+requested with `--target-socket`, only its container port configuration and
+network subnet metadata are compared with Docker. This is not a live
+host-routing or socket-occupancy check. Image/platform capability,
+gateway/DNS compatibility, missing or malformed IPAM data,
+application-consistent data and rollback readiness have **not** been verified. The JSON lists
 proposed manual steps but cannot be applied; no `--apply` flag exists.
 Treat inventory and preview outputs as private infrastructure metadata.
+
+Optional target-side read-only comparison (PRs #48–#49):
+
+```fish
+caskel migrate docker --dry-run --target-socket /run/caskel/docker.sock --json
+```
+
+The target must identify as Caskel and be a different Unix socket from
+Docker's. The command uses GET only, reports potential overlapping published
+host ports and IPAM IPv4/IPv6 CIDR ranges, and keeps every workload blocked.
+Network-name matches do not imply safe equivalence. Invalid/unavailable
+subnets cannot be treated as compatible. Never publish the JSON report.
 
 **Verification on merged PR #23:** all four CI workflows passed, including
 the disposable Linux host's real-Docker read-only inventory and JSON
@@ -77,8 +93,9 @@ container/image inventory is unchanged. These checks are **not** proof
 of behavior against the user's production Docker host.
 
 Still planned: validate a representative source host without mutation;
-inspect isolated Caskel destination state; cross-check source/target
-network/IPAM/host ports/storage, image/platform support and restoration
+continue isolated Caskel destination checks for
+network gateways, DNS, actual host port occupancy, storage
+ownership/space, image/platform support and restoration
 readiness; and only later design a separately authorized, reversible
 per-service cutover mechanism. No source or target is modified by a preview.
 
