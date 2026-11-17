@@ -162,6 +162,17 @@ jobs:
             sh -c 'grep -qx readonly-ok /proof/marker && ! touch /proof/unexpected'
           test ! -e "$bind_dir/unexpected"
           rm -rf "$bind_dir"
+          # Private bridge and container-name DNS regression. Only the
+          # disposable CI runner's Caskel engine may create these objects.
+          # The separate source Docker networks must stay unchanged.
+          docker_networks_before=$(docker network ls -q | sort)
+          sudo "$BIN" network create caskel-ci-dns
+          sudo "$BIN" run -d --name caskel-ci-dns-peer --network caskel-ci-dns alpine:3.21 sleep 1d
+          sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
+            sh -c 'nslookup caskel-ci-dns-peer | grep -q caskel-ci-dns-peer'
+          sudo "$BIN" rm -f caskel-ci-dns-peer
+          sudo "$BIN" network rm caskel-ci-dns
+          test "$docker_networks_before" = "$(docker network ls -q | sort)"
           # Discovery must query the real Docker source, even while the
           # separate Caskel daemon is running, and must not mutate it.
           docker_all_before=$(docker ps -aq | sort)
