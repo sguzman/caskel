@@ -77,7 +77,7 @@ fn pick_port(want: u16, lan: bool) -> io::Result<u16> {
     let last = want.saturating_add(PORT_TRIES);
     (want..=last).find(|&p| port_free(p, lan)).ok_or_else(|| {
         io::Error::other(format!(
-            "ports {want}–{last} are all in use on this host, so the cluster's API server has none to take. Choose another in Settings → Kubernetes (or `kiri k8s set --port N`), or stop what holds them, such as another Kiri's Kubernetes"
+            "ports {want}–{last} are all in use on this host, so the cluster's API server has none to take. Choose another in Settings → Kubernetes (or `caskel k8s set --port N`), or stop what holds them, such as another Caskel Kubernetes cluster"
         ))
     })
 }
