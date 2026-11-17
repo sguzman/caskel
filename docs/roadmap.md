@@ -13,7 +13,7 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | A3 | Linux build, Rust/agent tests and disposable privileged container smoke wired into CI | 4 | 4 | Verified — workflow `.github/workflows/nix.yml` |
 | B1 | Agent/daemon restart recovery avoids stale mounts and handles preserved containers | 5 | 5 | Verified — PR #6 and disposable CI |
 | B2 | Docker-style default/custom seccomp policy, Linux lifecycle safeguards | 5 | 5 | Verified — PR #7 and disposable CI |
-| B3 | Broader privileged host regressions for DNS, published ports, binds, volumes, restart and failures | 5 | 0 | Pending — distinct from current limited CI smoke |
+| B3 | Broader privileged host regressions for DNS, published ports, binds, volumes, restart and failures | 5 | 0 | Active — PR #46 (four CI checks) verifies named-volume persistence through Caskel restart and read-only bind rejection on disposable CI; comprehensive DNS/ports/failure matrix remains unverified |
 | C1 | Retire Windows/WSL and Mac release tooling, unsupported CLI/Apple VM backend | 4 | 4 | Verified — PRs #9 and #10 |
 | C2 | Prune Windows workspace, Apple dependencies, stale platform translations while retaining Linux runtime | 4 | 4 | Verified — PR #11 |
 | C3a | Remove unreachable Mac guest boot code and narrow Linux agent launch config | 2 | 2 | Verified — PR #12; all four checks passed |
@@ -22,9 +22,9 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | C5 | Rebrand internal agent/crate and runtime/public names with an explicit compatibility and rollback plan | 4 | 4 | Verified — #21, #27, #29, #30: Caskel Cargo/agent, public API, diagnostics, and canonical `CASKEL_*` service settings with documented legacy aliases and disposable CI |
 | D1 | Accurate Linux-first README and documented upstream-cherry-pick policy | 2 | 2 | Verified — PR #5, `UPSTREAM.md` |
 | D2 | Rewrite development, feature, security, release and contributor documentation for tested Linux behavior | 4 | 4 | Verified — PR #18, four CI workflows |
-| D3 | Remove upstream product branding from current-facing UI/assets; retain legally required provenance | 4 | 4 | Verified — #22, #25, #26, #28, #31: original Caskel SVGs, localized UI/About, support/docs, retired Kiri images, source/license retained; GTK runtime QA remains optional/outstanding |
+| D3 | Remove upstream product branding from current-facing UI/assets; retain legally required provenance | 4 | 4 | Verified — #22, #25, #26, #28, #31; native Hyprland GTK branding QA recorded via #43, with specified translation/Network-pane/post-#42 visual limits |
 | E1 | Native, read-only Docker inventory of containers, images, networks, Compose projects and persistence | 7 | 5 | Partial — PR #17, GET-only source, populated fixture and disposable live Docker smoke; representative user-host QA remains |
-| E2 | Deterministic non-mutating migration dry-run with collision, gap, storage and rollback diagnostics | 8 | 0 | Pending |
+| E2 | Deterministic non-mutating migration dry-run with collision, gap, storage and rollback diagnostics | 8 | 0 | Active — PR #23 merged: GET-only source inventory → deterministic, blocked dry-run; source-side port reuse and storage/security/Compose/rollback prerequisites tested in unit + disposable CI. Target Caskel collisions, host occupancy, restore readiness and full actionable compatibility diagnosis unverified; no readiness or cutover claims |
 | F1 | Verified image transfer from Docker/registry into Caskel | 4 | 0 | Pending |
 | F2 | Recreate supported Compose/containers/networking without hijacking Docker | 4 | 0 | Pending |
 | F3 | Application-consistent persistent-data migration, ownership and restore verification | 4 | 0 | Pending |
@@ -32,7 +32,7 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | G1 | Multi-service Linux acceptance matrix for security, Compose, DNS/ports, data retention and restart/restore | 5 | 0 | Pending |
 | G2 | Pinned release and staged real-host promotion with repeatable rollback evidence | 5 | 0 | Pending — never auto-redeploy production |
 
-**Verified score after C4 technical source isolation and release-metadata audit:** **59 / 100** (+1 following #44 and the documented provenance ledger; remaining GPL/release correspondence review is not verified). The branding baseline was **58 / 100** (+9 since the previous 49/100 ledger: platform-artifact audit +1, Caskel internal/runtime name migration +4, current-facing branding +4). This remains a *weighted engineering estimate* for the whole Linux runtime and future Docker migration—not a claim that Caskel's entire functionality is 58% tested. The inventory has 2 points reserved for QA on a representative Docker host. A GTK compile check was added separately in PR #32; a real desktop GUI acceptance session remains outstanding.
+**Verified score after C4 technical source isolation and release-metadata audit:** **59 / 100** (+1 following #44 and the documented provenance ledger; remaining GPL/release correspondence review is not verified). The branding baseline was **58 / 100** (+9 since the previous 49/100 ledger: platform-artifact audit +1, Caskel internal/runtime name migration +4, current-facing branding +4). This remains a *weighted engineering estimate* for the whole Linux runtime and future Docker migration—not a claim that Caskel's entire functionality is 59% tested. The inventory has 2 points reserved for QA on a representative Docker host. Native GTK visual branding acceptance was recorded in PR #43 with its specific limits; broad container/migration readiness is not implied.
 
 ## Current priorities
 
@@ -50,15 +50,18 @@ localization QA. The branding QA itself left the score unchanged. The separately
 C4 build-input isolation and source-metadata audit contributes +1 (59/100);
 the final GPL provenance point is still open.
 
-Migration PRs #23 and #35 remain **unmerged** and must be re-reviewed against
-current main and the source-host safety boundary before work resumes.
+The read-only migration preview in PR #23 is now **merged** after four green
+CI workflows; it never applies a plan and cannot approve a cutover. The
+outdated storage PR #35 was **closed without merge**, replaced by merged
+PR #46's disposable-host persistence and read-only-bind tests.
+Neither implies production readiness or permits changes to Docker state.
 
 **Now that branding acceptance is recorded**, follow these engineering priorities:
 
 1. Finish legally safe disposal/audit of old guest-kernel build dependencies. Preserve required GPL corresponding-source artifacts and `crates/kiri-vmm/src/process.rs` (now the `caskel-agent-transport` package).
 2. Keep canonical Caskel identity and `CASKEL_*` configuration while preserving tested historical `KIRI_*`, `/kiri/*` and DNS/TLS interfaces until safe migration. The GitHub repository About description/homepage were corrected by the owner on 2026-11-17.
-3. Validate the read-only Docker inventory against a representative existing Docker host (no mutation), then implement the deterministic dry-run before any service transfer.
-4. Extend disposable-host tests of networking, mounts, persistence and rollback before production cutover.
+3. Validate existing GET-only Docker inventory and the blocked dry-run against a representative source host **without mutation**, then add audited destination-side compatibility/port/storage diagnostics. No apply/cutover support.
+4. Extend disposable-host tests beyond #46's named-volume and read-only-bind coverage to networking, failure modes, persistence and rollback before any production cutover.
 
 ## Non-negotiable safety and completion gates
 
