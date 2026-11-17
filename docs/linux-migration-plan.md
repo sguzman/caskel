@@ -5,8 +5,9 @@
 Upstream contains an importer at `crates/kiri/src/import.rs`, built
 around Docker Desktop and OrbStack contexts. That code is not exposed by
 the Linux CLI and does not accept the normal local Docker daemon as a source.
-Our first Linux-specific feature will adapt it rather than risk an ad hoc
-bulk migration.
+Caskel's independent Linux implementation instead uses a GET-only Docker
+inventory and a deterministic **blocked** preview. It does not invoke the
+upstream importer or perform bulk migration.
 
 ## Milestones
 
@@ -69,10 +70,17 @@ data and rollback readiness have **not** been verified. The JSON lists
 proposed manual steps but cannot be applied; no `--apply` flag exists.
 Treat inventory and preview outputs as private infrastructure metadata.
 
-Still planned: inspect Caskel destination state, cross-check source and target
-network/IPAM/ports/storage compatibility, and construct fully verified
-per-service execution and rollback plans. No source or target is modified
-by a preview.
+**Verification on merged PR #23:** all four CI workflows passed, including
+the disposable Linux host's real-Docker read-only inventory and JSON
+preview checks. The suite rejects `--apply` and confirms the original Docker
+container/image inventory is unchanged. These checks are **not** proof
+of behavior against the user's production Docker host.
+
+Still planned: validate a representative source host without mutation;
+inspect isolated Caskel destination state; cross-check source/target
+network/IPAM/host ports/storage, image/platform support and restoration
+readiness; and only later design a separately authorized, reversible
+per-service cutover mechanism. No source or target is modified by a preview.
 
 ## Safety principles
 
