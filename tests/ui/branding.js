@@ -39,6 +39,7 @@ t("Linux offers no Share or cloud report-upload controls", () => {
     throw new Error("cloud controls remain in Diagnostics");
   if (!pane.includes('data-dgreport="save"')) throw new Error("local report export missing");
   if (shareOn()) throw new Error("cloud Share is enabled on Linux");
+  if (document.querySelector('nav [data-view="share"]') && getComputedStyle(document.querySelector('nav [data-view="share"]')).display !== "none") throw new Error("Share navigation is visible");
   reportDialog("send");
   if (document.querySelector("#rp")) throw new Error("cloud report dialog opened on Linux");
 });
