@@ -272,21 +272,32 @@ fn findings(container: &Value) -> Vec<&'static str> {
 /// complete cross-namespace port occupancy, image compatibility and safe
 /// database consistency are not established; every workload stays blocked.
 pub(super) fn preview(inventory: &Value) -> io::Result<Value> {
-    preview_optional_target(inventory, None, None)
+    preview_optional_target(inventory, None, None, None)
 }
 
 /// Optional opt-in target inspection remains non-mutating and NEVER marks
 /// any workload ready, even if the target is empty or no overlaps are found.
 pub(super) fn preview_with_target(inventory: &Value, target: &Value) -> io::Result<Value> {
-    preview_optional_target(inventory, Some(target), None)
+    preview_optional_target(inventory, Some(target), None, None)
 }
 
 /// Explicitly opted-in host socket observation never approves a workload.
 pub(super) fn preview_with_local_listeners(inventory: &Value, target: Option<&Value>, listeners: &[Listener]) -> io::Result<Value> {
-    preview_optional_target(inventory, target, Some(listeners))
+    preview_optional_target(inventory, target, Some(listeners), None)
 }
 
-fn preview_optional_target(inventory: &Value, target: Option<&Value>, listeners: Option<&[Listener]>) -> io::Result<Value> {
+/// Optional local mount-path metadata never implies source consistency or
+/// destination readiness, even if all reported paths are present.
+pub(super) fn preview_with_host_storage(
+    inventory: &Value, target: Option<&Value>, listeners: Option<&[Listener]>, storage: &[Value]
+) -> io::Result<Value> {
+    preview_optional_target(inventory, target, listeners, Some(storage))
+}
+
+fn preview_optional_target(
+    inventory: &Value, target: Option<&Value>,
+    listeners: Option<&[Listener]>, storage: Option<&[Value]>
+) -> io::Result<Value> {
     let containers = array(&inventory["containers"], "inventory containers")?;
     let target_containers = match target {
         Some(v) => array(&v["containers"], "target containers")?.as_slice(),
@@ -323,6 +334,8 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>, listeners:
         "target_caskel_inspected": target.is_some(),
         "local_host_listeners_inspected": listeners.is_some(),
         "observed_source_port_occupancy": listeners.map(|items| observed_source_port_occupancy(containers, items)).unwrap_or_default(),
+        "local_host_storage_inspected": storage.is_some(),
+        "observed_source_storage": storage.unwrap_or(&[]),
         "target_socket": target.map(|v| string(v, "target_socket")),
         "target_container_count": target.map(|_| target_containers.len()),
         "potential_source_target_port_overlap": source_target_port_overlap(containers, target_containers),
@@ -336,7 +349,7 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>, listeners:
         "unverified_requirements": [
             "target Caskel image/platform support, capabilities, DNS, gateways and network/IPAM compatibility not fully checked; missing or malformed subnet data cannot establish safety",
             "the optional /proc host listener snapshot reads only this CLI's network namespace; ownership, other namespaces and future availability remain unverified, and source ports must be released deliberately",
-            "target storage ownership, permissions and available space not checked",
+            "optional host mount metadata describes Docker source paths only; Docker's mount namespace may differ and destination storage permissions, space, and ownership remain unverified",
             "database and other active write-heavy services require application-consistent backup and tested restore",
             "Compose secrets, dependency order and external resources need original Compose/configuration review",
             "a controlled source stop, target health check and Docker rollback are mandatory before cutover"
@@ -508,6 +521,25 @@ mod tests {
             .all(|c| c["status"] == "blocked_pending_manual_validation"));
         assert!(preview(&source).unwrap()["observed_source_port_occupancy"].as_array().unwrap().is_empty());
         assert_eq!(preview(&source).unwrap()["local_host_listeners_inspected"], false);
+    }
+
+    #[test]
+    fn optional_host_storage_metadata_is_a_blocked_observation_only() {
+        let source = fixture();
+        let storage = vec![json!({
+            "kind": "volume", "path": "/srv/example",
+            "status": "observed", "file_type": "directory",
+            "uid": 1000, "gid": 1000, "filesystem_available_bytes": 128
+        })];
+        let report = preview_with_host_storage(&source, None, None, &storage).unwrap();
+        assert_eq!(report["local_host_storage_inspected"], true);
+        assert_eq!(report["observed_source_storage"], storage);
+        assert_eq!(report["local_host_listeners_inspected"], false);
+        assert_eq!(report["ready_to_apply"], false);
+        assert!(report["workloads"].as_array().unwrap().iter()
+            .all(|c| c["status"] == "blocked_pending_manual_validation"));
+        assert_eq!(preview(&source).unwrap()["local_host_storage_inspected"], false);
+        assert_eq!(preview(&source).unwrap()["observed_source_storage"], json!([]));
     }
 
     #[test]
