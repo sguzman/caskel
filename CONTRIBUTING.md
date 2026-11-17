@@ -39,7 +39,7 @@ nix develop --command cargo fmt --all -- --check
 ```
 
 ```fish
-nix develop --command cargo test --locked -p kiri -p kiri-proto -p kiri-vmm
+nix develop --command cargo test --locked -p caskel -p caskel-proto -p caskel-agent-transport
 ```
 
 GitHub Actions runs additional privileged Linux agent and container smoke
