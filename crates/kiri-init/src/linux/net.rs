@@ -45,8 +45,8 @@ pub struct Ip6 {
 
 impl Ip6 {
     /// From a network's `ip6=` and `gw6=` settings; None on IPv4-only ones.
-    pub fn from_opts(opts: kiri_proto::StrList<'_>) -> Option<Ip6> {
-        use kiri_proto::net_opts as k;
+    pub fn from_opts(opts: caskel_proto::StrList<'_>) -> Option<Ip6> {
+        use caskel_proto::net_opts as k;
         let (ip, prefix) = k::values(opts, k::IP6).next()?.split_once('/')?;
         let gateway = k::values(opts, k::GW6).next()?;
         Some(Ip6 {
@@ -74,8 +74,8 @@ pub struct Plug {
 }
 
 impl Plug {
-    pub fn from_opts(opts: kiri_proto::StrList<'_>) -> Plug {
-        use kiri_proto::net_opts as k;
+    pub fn from_opts(opts: caskel_proto::StrList<'_>) -> Plug {
+        use caskel_proto::net_opts as k;
         Plug { internal: k::values(opts, k::INTERNAL).next().is_some(), no_ipv4: k::values(opts, k::NO_IPV4).next().is_some() }
     }
 }
@@ -749,16 +749,16 @@ mod tests {
     #[test]
     fn ipv6_settings_come_from_the_options() {
         let mut buf = Vec::new();
-        kiri_proto::encode_net_attach(&mut buf, "c1", "eth1", "kiri2", [10, 5, 0, 2], 24, [10, 5, 0, 1], &["web"], &["ip6=fd00:1::2/64", "gw6=fd00:1::1"]);
-        let Ok(kiri_proto::Msg::NetAttach { net, .. }) = kiri_proto::decode(&buf) else { panic!() };
+        caskel_proto::encode_net_attach(&mut buf, "c1", "eth1", "kiri2", [10, 5, 0, 2], 24, [10, 5, 0, 1], &["web"], &["ip6=fd00:1::2/64", "gw6=fd00:1::1"]);
+        let Ok(caskel_proto::Msg::NetAttach { net, .. }) = caskel_proto::decode(&buf) else { panic!() };
         let v = Ip6::from_opts(net.opts).unwrap();
         assert_eq!(ip6_str(v.ip), "fd00:1::2");
         assert_eq!(ip6_str(v.gateway), "fd00:1::1");
         assert_eq!(v.prefix, 64);
         assert_eq!(ip6_str(v.subnet()), "fd00:1::");
         let mut buf = Vec::new();
-        kiri_proto::encode_net_attach::<&str>(&mut buf, "c1", "eth1", "kiri2", [10, 5, 0, 2], 24, [10, 5, 0, 1], &[], &[]);
-        let Ok(kiri_proto::Msg::NetAttach { net, .. }) = kiri_proto::decode(&buf) else { panic!() };
+        caskel_proto::encode_net_attach::<&str>(&mut buf, "c1", "eth1", "kiri2", [10, 5, 0, 2], 24, [10, 5, 0, 1], &[], &[]);
+        let Ok(caskel_proto::Msg::NetAttach { net, .. }) = caskel_proto::decode(&buf) else { panic!() };
         assert_eq!(Ip6::from_opts(net.opts), None);
     }
 }

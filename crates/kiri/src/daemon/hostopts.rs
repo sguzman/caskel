@@ -2,7 +2,7 @@
 //! `--ulimit`, `--sysctl`, `--device`, `--device-cgroup-rule` and
 //! `--group-add`. They are kept as the API gave them (for inspect), checked
 //! at create with Docker's errors, and handed to the guest at every start as
-//! the `opts` lines of `Run` and `Exec` (see [`kiri_proto::RunSpec::opts`]).
+//! the `opts` lines of `Run` and `Exec` (see [`caskel_proto::RunSpec::opts`]).
 
 use serde_json::{Value, json};
 

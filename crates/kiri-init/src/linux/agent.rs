@@ -8,7 +8,7 @@ use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::path::Path;
 
-use kiri_proto::{Exited, MAX_OUTPUT_CHUNK, Msg, Stats, Stream};
+use caskel_proto::{Exited, MAX_OUTPUT_CHUNK, Msg, Stats, Stream};
 
 use super::container::{self, NetCtx, Paths, Process};
 use super::net::{self, Bridges, Dhcp};
@@ -18,7 +18,7 @@ use super::{layers, meminfo, sys};
 /// `INPUT_WINDOW` bytes beyond what `InputConsumed` acknowledged, so a
 /// correct host never gets here; a broken one has the process's stdin closed
 /// rather than the agent holding unbounded memory.
-const MAX_PENDING_INPUT: usize = 2 * kiri_proto::INPUT_WINDOW;
+const MAX_PENDING_INPUT: usize = 2 * caskel_proto::INPUT_WINDOW;
 
 struct Proc {
     run: Process,
@@ -192,7 +192,7 @@ pub fn serve(mut conn: File, paths: &Paths) -> io::Result<()> {
                 while let Ok(lines) = usage_rx.try_recv() {
                     measuring = false;
                     out.clear();
-                    kiri_proto::encode_usage(&mut out, &lines);
+                    caskel_proto::encode_usage(&mut out, &lines);
                     conn.write_all(&out)?;
                 }
                 continue;
@@ -321,7 +321,7 @@ pub fn serve(mut conn: File, paths: &Paths) -> io::Result<()> {
             }
             let received_ns = sys::boottime_ns();
             out.clear();
-            match kiri_proto::decode(&frame) {
+            match caskel_proto::decode(&frame) {
                 Ok(Msg::Ping(v)) => Msg::Pong(v).encode(&mut out),
                 Ok(Msg::Shutdown) => {
                     if host_process {
@@ -353,10 +353,10 @@ pub fn serve(mut conn: File, paths: &Paths) -> io::Result<()> {
                     // A container that wants the network must not start before the
                     // VM has it: right after boot the DHCP lease can be a few
                     // hundred milliseconds away.
-                    if spec.flags & (kiri_proto::run_flags::NET_NONE | kiri_proto::run_flags::NET_HOST) == 0 {
+                    if spec.flags & (caskel_proto::run_flags::NET_NONE | caskel_proto::run_flags::NET_HOST) == 0 {
                         wait_for_lease(&mut dhcp, std::time::Duration::from_secs(3));
                     }
-                    let join_pid = kiri_proto::net_opts::values(spec.net.opts, kiri_proto::net_opts::NETNS).next().and_then(|t| running_pid(&procs, t));
+                    let join_pid = caskel_proto::net_opts::values(spec.net.opts, caskel_proto::net_opts::NETNS).next().and_then(|t| running_pid(&procs, t));
                     container::spawn(
                     &spec,
                     paths,
@@ -538,13 +538,13 @@ pub fn serve(mut conn: File, paths: &Paths) -> io::Result<()> {
                 Ok(Msg::TopQuery { id }) => match running_pid(&procs, id) {
                     Some(_) => {
                         let lines = super::cgroup::top(&paths.cgroup.join(id));
-                        kiri_proto::encode_top(&mut out, &lines);
+                        caskel_proto::encode_top(&mut out, &lines);
                     }
                     None => Msg::Error(&format!("container {id} is not running")).encode(&mut out),
                 },
-                Ok(Msg::UsbNodesQuery) => kiri_proto::encode_usb_nodes(&mut out, &super::usb::nodes()),
+                Ok(Msg::UsbNodesQuery) => caskel_proto::encode_usb_nodes(&mut out, &super::usb::nodes()),
                 Ok(Msg::ListenQuery { id }) => match running_pid(&procs, id) {
-                    Some(pid) => kiri_proto::encode_listening(&mut out, &net::listening(pid)),
+                    Some(pid) => caskel_proto::encode_listening(&mut out, &net::listening(pid)),
                     None => Msg::Error(&format!("container {id} is not running")).encode(&mut out),
                 },
                 Ok(Msg::NetAttach { id, ifname, net: n }) => match running_pid(&procs, id) {
@@ -554,7 +554,7 @@ pub fn serve(mut conn: File, paths: &Paths) -> io::Result<()> {
                         // A previous run's veth can outlive its namespace for a moment;
                         // the name is this container's own, so it can go.
                         let _ = net::detach(&host_if);
-                        let mac = kiri_proto::net_opts::values(n.opts, kiri_proto::net_opts::MAC).next().and_then(net::parse_mac);
+                        let mac = caskel_proto::net_opts::values(n.opts, caskel_proto::net_opts::MAC).next().and_then(net::parse_mac);
                         let v6 = net::Ip6::from_opts(n.opts);
                         let plug = net::Plug::from_opts(n.opts);
                         let attached = net::attach(&mut bridges, n.bridge, &host_if, pid, num, n.ip, n.prefix, n.gateway, mac, v6, plug)
@@ -618,7 +618,7 @@ pub fn serve(mut conn: File, paths: &Paths) -> io::Result<()> {
                     Some(root) => match super::fsview::list(&root, path) {
                         Ok(list) => {
                             let entries: Vec<_> = list.iter().map(|(n, m)| super::fsview::entry(n, *m)).collect();
-                            kiri_proto::encode_fs_list(&mut out, &entries)
+                            caskel_proto::encode_fs_list(&mut out, &entries)
                         }
                         Err(e) => Msg::Error(&format!("list {path}: {e}")).encode(&mut out),
                     },
@@ -758,7 +758,7 @@ fn read_frame(conn: &mut File, buf: &mut Vec<u8>) -> io::Result<bool> {
     if let Err(e) = conn.read_exact(&mut buf[..4]) {
         return if e.kind() == io::ErrorKind::UnexpectedEof { Ok(false) } else { Err(e) };
     }
-    let len = kiri_proto::frame_len(buf[..4].try_into().expect("4 bytes"))
+    let len = caskel_proto::frame_len(buf[..4].try_into().expect("4 bytes"))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
     buf.resize(len, 0);
     conn.read_exact(&mut buf[4..])?;
@@ -975,7 +975,7 @@ mod running_tests {
 
     #[test]
     fn a_new_process_on_a_freed_pid_finishes_the_old_one_first() {
-        use kiri_proto::Msg;
+        use caskel_proto::Msg;
         use std::io::Write;
         let (mut host, mut conn) = pipe();
         let mut dns = super::super::dns::Dns::default();
@@ -996,9 +996,9 @@ mod running_tests {
         assert_eq!(procs[&100].run.id, "new");
         let mut frame = Vec::new();
         assert!(super::read_frame(&mut host, &mut frame).unwrap());
-        assert!(matches!(kiri_proto::decode(&frame), Ok(Msg::Output { id: "old", data: b"bye", .. })), "its last output first");
+        assert!(matches!(caskel_proto::decode(&frame), Ok(Msg::Output { id: "old", data: b"bye", .. })), "its last output first");
         assert!(super::read_frame(&mut host, &mut frame).unwrap());
-        assert!(matches!(kiri_proto::decode(&frame), Ok(Msg::Exited(e)) if e.id == "old" && e.code == 3), "then its exit");
+        assert!(matches!(caskel_proto::decode(&frame), Ok(Msg::Exited(e)) if e.id == "old" && e.code == 3), "then its exit");
         assert!(!super::read_frame(&mut host, &mut frame).unwrap(), "nothing about the new one");
     }
 }

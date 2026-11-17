@@ -99,7 +99,7 @@ fn authority() -> io::Result<(Issuer<'static, KeyPair>, CertificateDer<'static>)
 
 fn pem_to_der(pem: &str) -> Option<CertificateDer<'static>> {
     let body: String = pem.lines().filter(|l| !l.starts_with("-----")).collect();
-    kiri_image::b64::decode(&body).map(CertificateDer::from)
+    caskel_image::b64::decode(&body).map(CertificateDer::from)
 }
 
 /// Days since 1970 as a (year, month, day), for certificate dates.

@@ -68,6 +68,7 @@ t("with no engine, the row says to start Kiri", () => {
   kiri.on({ type: "routerports", error: "connection refused" });
   domains();
   if (document.getElementById("rp-http")) throw new Error("boxes shown");
-  if (!/Start Kiri/.test(document.querySelector("#content .settings").textContent)) throw new Error("no hint");
+  const expected = window.KIRI_OS === "linux" ? /Start Caskel/ : /Start Kiri/;
+  if (!expected.test(document.querySelector("#content .settings").textContent)) throw new Error("no hint");
 });
 report([...R, ...items.map((x) => "ITEM " + x)]);

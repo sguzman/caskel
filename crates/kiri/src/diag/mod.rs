@@ -1,4 +1,4 @@
-//! Diagnostics: Kiri's own log, crash reports and `kiri diag`.
+//! Diagnostics: Caskel logs, crash reports and `caskel diag`.
 //!
 //! Each process, the window (`ui`), the engine (`daemon`) and the command
 //! line (`cli`), writes one JSON line per event to `~/.kiri/logs/<part>.log`:
@@ -520,7 +520,7 @@ pub fn crash_text(t: SystemTime, thread: &str, at: &str, message: &str, backtrac
     // The subcommand only: arguments can carry values (`-e KEY=VALUE`).
     let command = std::env::args().nth(1).filter(|a| a.len() <= 20 && a.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'));
     let text = format!(
-        "Kiri crash report\n\
+        "Caskel crash report\n\
          Version:  {app} {version}\n\
          Flavor:   {flavor}\n\
          Part:     {part}\n\
@@ -662,7 +662,8 @@ mod tests {
         assert_eq!(b.file_name().unwrap(), "1792800000-daemon-1.txt");
         let text = crash_text(t, "kiri-api", "src/x.rs:1:2", "boom", "0: main");
         assert!(text.contains("Message:  boom") && text.contains("Thread:   kiri-api") && text.contains("Backtrace:\n0: main"), "{text}");
-        assert!(text.contains(&format!("Version:  Kiri {}", env!("CARGO_PKG_VERSION"))));
+        assert!(text.contains(&format!("Version:  {} {}", crate::flavor::APP.get(), env!("CARGO_PKG_VERSION"))));
+        assert!(text.contains("Caskel crash report"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

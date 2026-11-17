@@ -11,12 +11,12 @@ ConditionPathExists=!/run/kiri/docker.sock
 [Service]
 Type=simple
 ExecStart=/nix/var/nix/profiles/caskel/bin/caskel daemon
-Environment=KIRI_AGENT=/nix/var/nix/profiles/caskel/bin/kiri-init
-Environment=KIRI_SOCKET=/run/caskel/docker.sock
-Environment=KIRI_SOCKET_GROUP=docker
-Environment=KIRI_DATA_DIR=/var/lib/caskel-daemon/data
-Environment=KIRI_HTTP_PORT=18080
-Environment=KIRI_HTTPS_PORT=18443
+Environment=CASKEL_AGENT=/nix/var/nix/profiles/caskel/bin/caskel-init
+Environment=CASKEL_SOCKET=/run/caskel/docker.sock
+Environment=CASKEL_SOCKET_GROUP=docker
+Environment=CASKEL_DATA_DIR=/var/lib/caskel-daemon/data
+Environment=CASKEL_HTTP_PORT=18080
+Environment=CASKEL_HTTPS_PORT=18443
 Environment=HOME=/var/lib/caskel-daemon
 StateDirectory=caskel-daemon
 StateDirectoryMode=0700

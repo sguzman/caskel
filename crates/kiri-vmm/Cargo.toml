@@ -1,5 +1,5 @@
 [package]
-name = "kiri-vmm"
+name = "caskel-agent-transport"
 description = "Linux host agent process and private Unix-socket transport"
 version.workspace = true
 edition.workspace = true

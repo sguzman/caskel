@@ -15,8 +15,8 @@ use std::path::Path;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Condvar, Mutex};
 
-use kiri_proto::{HEADER, LayerBegin, Msg, Stats, Stream};
-use kiri_vmm::Vm;
+use caskel_proto::{HEADER, LayerBegin, Msg, Stats, Stream};
+use caskel_agent_transport::Vm;
 
 /// A reply to one request.
 #[derive(Debug)]
@@ -31,7 +31,7 @@ pub enum Reply {
     FsList(Vec<FileInfo>),
     FsData(Vec<u8>),
     Ack,
-    ContainerStats(kiri_proto::ContainerStats),
+    ContainerStats(caskel_proto::ContainerStats),
     Top(Vec<String>),
     Listening(Vec<String>),
     UsbNodes(Vec<String>),
@@ -49,8 +49,8 @@ pub struct FileInfo {
     pub mtime_nsec: u32,
 }
 
-impl From<kiri_proto::FsEntry<'_>> for FileInfo {
-    fn from(e: kiri_proto::FsEntry<'_>) -> FileInfo {
+impl From<caskel_proto::FsEntry<'_>> for FileInfo {
+    fn from(e: caskel_proto::FsEntry<'_>) -> FileInfo {
         FileInfo { name: e.name.to_owned(), mode: e.mode, size: e.size, mtime: e.mtime, mtime_nsec: e.mtime_nsec }
     }
 }
@@ -79,7 +79,7 @@ pub struct VmLink {
     /// link can be shared between threads; nothing touches it after boot.
     _vm: Mutex<Vm>,
     /// Opens vsock streams without that mutex, so connects run side by side.
-    connector: kiri_vmm::Connector,
+    connector: caskel_agent_transport::Connector,
 }
 
 impl std::fmt::Debug for VmLink {
@@ -148,7 +148,7 @@ impl Windows {
         self.credit.lock().unwrap_or_else(|e| e.into_inner())
     }
     fn open(&self, id: &str) {
-        self.lock().by_id.insert(id.to_owned(), kiri_proto::INPUT_WINDOW);
+        self.lock().by_id.insert(id.to_owned(), caskel_proto::INPUT_WINDOW);
     }
     fn close(&self, id: &str) {
         self.lock().by_id.remove(id);
@@ -156,7 +156,7 @@ impl Windows {
     }
     fn add(&self, id: &str, n: usize) {
         if let Some(c) = self.lock().by_id.get_mut(id) {
-            *c = (*c + n).min(kiri_proto::INPUT_WINDOW);
+            *c = (*c + n).min(caskel_proto::INPUT_WINDOW);
         }
         self.changed.notify_all();
     }
@@ -230,7 +230,7 @@ impl VmLink {
         std::thread::Builder::new().name("kiri-vm-reader".into()).spawn(move || {
             let mut frame = Vec::with_capacity(64 * 1024);
             while read_frame(&mut reader, &mut frame).is_ok() {
-                let msg = kiri_proto::decode(&frame);
+                let msg = caskel_proto::decode(&frame);
                 let reply = match msg {
                     Ok(Msg::Output { id, stream, data }) => {
                         on_event(Event::Output { id, stream, data });
@@ -266,7 +266,7 @@ impl VmLink {
                     Ok(Msg::Pong(_)) => Reply::Pong,
                     Ok(Msg::FsStat(e)) => Reply::FsStat(FileInfo::from(e)),
                     Ok(Msg::FsList { count, raw }) => Reply::FsList(
-                        kiri_proto::fs_entries(count, raw)
+                        caskel_proto::fs_entries(count, raw)
                             .map(FileInfo::from)
                             .collect(),
                     ),
@@ -377,15 +377,15 @@ impl VmLink {
         user: &str,
         hostname: &str,
         flags: u32,
-        net: kiri_proto::Net<'_, String>,
+        net: caskel_proto::Net<'_, String>,
         mounts: &[String],
-        limits: &kiri_proto::Limits,
+        limits: &caskel_proto::Limits,
         caps: u64,
         opts: &[String],
         seccomp: &[u8],
     ) -> io::Result<u32> {
         self.windows.open(id);
-        let r = self.call(|o| kiri_proto::encode_run(o, id, layers, argv, env, cwd, user, hostname, flags, net, mounts, limits, caps, opts, seccomp), None).and_then(started);
+        let r = self.call(|o| caskel_proto::encode_run(o, id, layers, argv, env, cwd, user, hostname, flags, net, mounts, limits, caps, opts, seccomp), None).and_then(started);
         if r.is_err() {
             self.windows.close(id);
         }
@@ -399,7 +399,7 @@ impl VmLink {
         }
     }
 
-    pub fn update(&self, id: &str, limits: kiri_proto::Limits) -> io::Result<()> {
+    pub fn update(&self, id: &str, limits: caskel_proto::Limits) -> io::Result<()> {
         self.ack(|o| Msg::Update { id, limits }.encode(o))
     }
 
@@ -407,7 +407,7 @@ impl VmLink {
         self.ack(|o| Msg::Freeze { id, frozen }.encode(o))
     }
 
-    pub fn container_stats(&self, id: &str) -> io::Result<kiri_proto::ContainerStats> {
+    pub fn container_stats(&self, id: &str) -> io::Result<caskel_proto::ContainerStats> {
         match self.call(|o| Msg::StatsQuery { id }.encode(o), None)? {
             Reply::ContainerStats(s) => Ok(s),
             other => Err(io::Error::other(format!("expected ContainerStats, got {other:?}"))),
@@ -447,7 +447,7 @@ impl VmLink {
     #[allow(clippy::too_many_arguments)]
     pub fn net_attach(&self, id: &str, n: u32, bridge: &str, ip: [u8; 4], prefix: u8, gateway: [u8; 4], dns_names: &[String], opts: &[String]) -> io::Result<()> {
         let ifname = format!("eth{n}");
-        self.ack(|o| kiri_proto::encode_net_attach(o, id, &ifname, bridge, ip, prefix, gateway, dns_names, opts))
+        self.ack(|o| caskel_proto::encode_net_attach(o, id, &ifname, bridge, ip, prefix, gateway, dns_names, opts))
     }
 
     pub fn net_detach(&self, id: &str, n: u32, bridge: &str, ip: [u8; 4]) -> io::Result<()> {
@@ -458,7 +458,7 @@ impl VmLink {
     #[allow(clippy::too_many_arguments)]
     pub fn exec(&self, container_id: &str, exec_id: &str, argv: &[String], env: &[String], cwd: &str, user: &str, flags: u32, caps: u64, opts: &[String]) -> io::Result<u32> {
         self.windows.open(exec_id);
-        let r = self.call(|o| kiri_proto::encode_exec(o, container_id, exec_id, argv, env, cwd, user, flags, caps, opts), None).and_then(started);
+        let r = self.call(|o| caskel_proto::encode_exec(o, container_id, exec_id, argv, env, cwd, user, flags, caps, opts), None).and_then(started);
         if r.is_err() {
             self.windows.close(exec_id);
         }
@@ -470,7 +470,7 @@ impl VmLink {
     /// client (its write blocks) instead of the agent dropping input.
     pub fn input(&self, id: &str, data: &[u8]) -> io::Result<()> {
         // Frames are bounded, so large writes go in pieces.
-        for piece in data.chunks(kiri_proto::MAX_OUTPUT_CHUNK) {
+        for piece in data.chunks(caskel_proto::MAX_OUTPUT_CHUNK) {
             if !self.windows.take(id, piece.len())? {
                 return Ok(());
             }
@@ -500,7 +500,7 @@ impl VmLink {
     /// Forwards a published port in the kernel (on a Linux host; in the VM,
     /// from the NAT network). `Err` means the agent could not; the caller
     /// falls back to relaying.
-    pub fn publish(&self, p: kiri_proto::Publish<'_>) -> io::Result<()> {
+    pub fn publish(&self, p: caskel_proto::Publish<'_>) -> io::Result<()> {
         match self.call(|o| Msg::Publish(p).encode(o), None)? {
             Reply::Ack => Ok(()),
             Reply::Error(e) => Err(io::Error::other(e)),
@@ -531,12 +531,12 @@ impl VmLink {
 
     /// Tells the guest which stopped containers still exist; it deletes the rest.
     pub fn retain(&self, ids: &[String]) -> io::Result<()> {
-        self.send(|o| kiri_proto::encode_retain(o, ids))
+        self.send(|o| caskel_proto::encode_retain(o, ids))
     }
 
     /// Tells the guest which unpacked layers are still used; it deletes the rest.
     pub fn retain_layers(&self, digests: &[String]) -> io::Result<()> {
-        self.send(|o| kiri_proto::encode_retain_layers(o, digests))
+        self.send(|o| caskel_proto::encode_retain_layers(o, digests))
     }
 
     pub fn kill(&self, id: &str, signal: u32) -> io::Result<()> {
@@ -553,12 +553,12 @@ impl VmLink {
     }
 
     /// Accepts guest-initiated streams on `port`.
-    pub fn listen(&self, port: u32, handler: kiri_vmm::Handler) -> io::Result<()> {
+    pub fn listen(&self, port: u32, handler: caskel_agent_transport::Handler) -> io::Result<()> {
         self._vm.lock().unwrap_or_else(|e| e.into_inner()).listen(port, handler)
     }
 
     /// A new stream to a port the guest agent listens on.
-    pub fn connect(&self, port: u32) -> io::Result<kiri_vmm::VsockStream> {
+    pub fn connect(&self, port: u32) -> io::Result<caskel_agent_transport::VsockStream> {
         self.connector.connect(port)
     }
 
@@ -649,7 +649,7 @@ fn started(r: Reply) -> io::Result<u32> {
 fn read_frame(conn: &mut File, buf: &mut Vec<u8>) -> io::Result<()> {
     buf.resize(4, 0);
     conn.read_exact(&mut buf[..4])?;
-    let len = kiri_proto::frame_len(buf[..4].try_into().expect("4 bytes"))
+    let len = caskel_proto::frame_len(buf[..4].try_into().expect("4 bytes"))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
     buf.resize(len.max(HEADER), 0);
     conn.read_exact(&mut buf[4..])

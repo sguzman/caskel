@@ -203,7 +203,7 @@ pub fn layers(builder: &str, id: &str) -> io::Result<Value> {
 /// Windows, whose store is inside WSL.
 #[cfg(not(windows))]
 pub fn image_layers(name: &str) -> io::Result<Value> {
-    let store = kiri_image::Store::open(kiri_image::Store::default_root()?)?;
+    let store = caskel_image::Store::open(caskel_image::Store::default_root()?)?;
     let (i, manifest, config) = stored(&store, name)?;
     Ok(json!({"name": name, "images": [image(&manifest, &config, Some(&i.platform))], "materials": []}))
 }
@@ -211,7 +211,7 @@ pub fn image_layers(name: &str) -> io::Result<Value> {
 /// An image in the store by name or ID, with a manifest made from its layers
 /// and its config.
 #[cfg(not(windows))]
-pub(crate) fn stored(store: &kiri_image::Store, name: &str) -> io::Result<(kiri_image::Image, Value, Value)> {
+pub(crate) fn stored(store: &caskel_image::Store, name: &str) -> io::Result<(caskel_image::Image, Value, Value)> {
     let found = match store.find(name)? {
         Some(i) => Some(i),
         // An untagged image goes by its ID, whole or the window's short form.

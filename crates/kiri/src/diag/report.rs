@@ -37,10 +37,10 @@ use super::Part;
 use crate::daemon::time;
 
 const USAGE: &str = "\
-usage: kiri diag logs [-f] [--ui|--engine|--cli] [--errors] [--op ID] [-n N]
-       kiri diag report [--out PATH] [--send]
+usage: caskel diag logs [-f] [--ui|--engine|--cli] [--errors] [--op ID] [-n N]
+       caskel diag report [--out PATH] [--send]
 
-logs     Kiri's own log, oldest first: the window (--ui), the engine
+logs     Caskel's own log, oldest first: the window (--ui), the engine
          (--engine) and the command line (--cli), all three by default.
          --errors keeps warnings and errors; --op ID one window action's
          lines (the id an error's Details show); -n N lines (default 50);
@@ -48,7 +48,7 @@ logs     Kiri's own log, oldest first: the window (--ui), the engine
 report   One file to send us: versions, whether the engine runs, recent
          log lines and crashes, with your home folder and any tokens taken
          out. Saved to the Desktop (or --out PATH). --send also sends it to
-         Kiri Cloud and prints its id.";
+         the explicitly opted-in legacy Kiri Cloud endpoint (off by default).";
 
 /// A report body may be at most this big.
 pub const MAX_BODY: usize = 1 << 20;
@@ -356,7 +356,7 @@ fn crash_name(name: &str) -> Option<(u64, Part)> {
 /// `state` is `~/.kiri`.
 pub fn assemble(home: &Path, state: &Path, facts: &Facts, redactor: &Redactor) -> String {
     let mut s = String::new();
-    let _ = writeln!(s, "Kiri diagnostics report");
+    let _ = writeln!(s, "Caskel diagnostics report");
     let _ = writeln!(s, "Created:  {}", time::rfc3339(facts.created));
     let _ = writeln!(s, "App:      {} {} ({}), made by the {}", crate::flavor::APP, env!("CARGO_PKG_VERSION"), crate::flavor::CONTEXT, super::part().name());
     let _ = writeln!(s, "System:   {}", super::system().line());
@@ -414,7 +414,7 @@ pub fn assemble(home: &Path, state: &Path, facts: &Facts, redactor: &Redactor) -
     redactor.apply(&s)
 }
 
-/// This Mac's report, as `kiri diag report` and the window make it; the
+/// Caskel diagnostics, as `caskel diag report` and the window make it; the
 /// window may add the container list.
 pub fn report_text(containers: bool) -> io::Result<String> {
     let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
@@ -423,13 +423,13 @@ pub fn report_text(containers: bool) -> io::Result<String> {
     Ok(assemble(&home, &state, &facts, &Redactor::for_user()))
 }
 
-/// `~/Desktop/kiri-report-20261028-104107.txt` (the home folder when there
+/// `~/Desktop/caskel-report-20261028-104107.txt` (the home folder when there
 /// is no Desktop).
 fn default_out() -> io::Result<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
     let desktop = home.join("Desktop");
     let stamp: String = local(&super::now()).chars().filter(|c| c.is_ascii_digit() || *c == ' ').take(15).collect::<String>().replace(' ', "-");
-    Ok(if desktop.is_dir() { desktop } else { home }.join(format!("kiri-report-{stamp}.txt")))
+    Ok(if desktop.is_dir() { desktop } else { home }.join(format!("caskel-report-{stamp}.txt")))
 }
 
 /// Writes the report, readable only by this user. Returns where.
@@ -709,7 +709,7 @@ pub fn send_crash(name: &str) -> io::Result<String> {
         let text = std::fs::read_to_string(dir.join(name))?;
         return sent_id(&text).map(str::to_owned).ok_or_else(|| io::Error::other("it was sent, but its id isn't in the file"));
     }
-    let claimed = claim(&dir, name).ok_or_else(|| io::Error::other("Kiri is sending it already"))?;
+    let claimed = claim(&dir, name).ok_or_else(|| io::Error::other("Caskel is sending this report already"))?;
     send_claimed(&dir, name, &claimed, &Redactor::for_user())
 }
 
@@ -885,7 +885,7 @@ mod tests {
         let facts = Facts { engine: "not running".into(), crash_reports: false, created: UNIX_EPOCH + Duration::from_secs(1_792_800_000), containers: Some("web  nginx:alpine  Up 2 hours\n".into()) };
         let text = assemble(&home, &state, &facts, &Redactor::new(Some(h.clone()), Vec::new()));
 
-        assert!(text.starts_with("Kiri diagnostics report\nCreated:  2026-10-24T00:00:00"), "{text}");
+        assert!(text.starts_with("Caskel diagnostics report\nCreated:  2026-10-24T00:00:00"), "{text}");
         assert!(text.contains("Engine:   not running") && text.contains("Crash reports: not sent automatically"));
         assert!(text.contains("==== Log: engine (~/.kiri/logs/daemon.log) ===="));
         // The last 300 of 400 lines.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kiri</title>
+<title>Caskel</title>
 <style>
 /* Kiri window. Hand-written, no framework: only the rules this page uses. */
 :root {
@@ -1423,8 +1423,8 @@ td.actions .acts-row { margin-inline-start: auto; width: max-content; padding-in
                   color: var(--muted); background: none; border: 0; cursor: pointer; }
 .wn-hero .close:hover { background: var(--row-hover); color: var(--text); }
 .wn-stage { display: flex; align-items: center; gap: 12px; height: 56px; margin-bottom: 12px; }
-.wn-kiri { width: 56px; height: 56px; flex: none; color: var(--muted); animation: wn-run .4s cubic-bezier(.2, .8, .3, 1.2) both; }
-.wn-kiri .speed rect { animation: wn-speed .35s ease-out .3s both; }
+.wn-caskel { width: 56px; height: 56px; flex: none; color: var(--muted); animation: wn-run .4s cubic-bezier(.2, .8, .3, 1.2) both; }
+.wn-caskel .speed rect { animation: wn-speed .35s ease-out .3s both; }
 .wn-vers { position: relative; display: flex; align-items: center; gap: 8px; font: 600 var(--fs-mono) var(--mono-font); }
 .wn-ver { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); }
 .wn-ver.old { color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--faint) 60%, transparent);
@@ -2302,7 +2302,7 @@ tr.usb-more > td { padding: 0; background: var(--panel); }
     <button data-view="pods"><svg class="i" viewBox="0 0 256 256" data-ph="pods"></svg><span class="lbl" data-i18n="Pods">Pods</span><span class="count" id="n-pods"></span></button>
     <button data-view="services"><svg class="i" viewBox="0 0 256 256" data-ph="services"></svg><span class="lbl" data-i18n="Services">Services</span><span class="count" id="n-services"></span></button>
   </nav>
-  <div class="navlabel">Kiri</div>
+  <div class="navlabel">Caskel</div>
   <nav>
     <button data-view="usb"><svg class="i" viewBox="0 0 256 256" data-ph="usb"></svg><span class="lbl" data-i18n="USB">USB</span><span class="beta" data-i18n-title="USB passthrough is new: tell us how it works with your devices" title="USB passthrough is new: tell us how it works with your devices" data-i18n="Beta">Beta</span><span class="count" id="n-usb"></span></button>
     <button data-view="share" class="shareonly"><svg class="i" viewBox="0 0 256 256" data-ph="globe"></svg><span class="lbl" data-i18n="Share">Share</span></button>
@@ -2492,7 +2492,10 @@ const trFill = (s, vars, islands) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (
 /* A key may end in |context where one English word needs two translations
    ("Live|stream" for a live feed, "Live" for a link that's up); English drops it. */
 const trBare = (s) => { const i = s.indexOf("|"); return i < 0 ? s : s.slice(0, i); };
-function tr(s, vars) { const w = DICT && DICT[s]; return trFill(w || trBare(s), vars, w && RTL.test(LANG)); }
+/* Keep the 37 locale catalogs' English lookup keys stable. Display Caskel
+   for this Linux product, without misrepresenting upstream Kiri Cloud/Share. */
+const caskelBrand = (s) => window.KIRI_OS === "linux" ? String(s).replace(/\bKiri\b(?! Cloud\b| Share\b)/g, "Caskel") : String(s);
+function tr(s, vars) { const w = DICT && DICT[s]; return trFill(caskelBrand(w || trBare(s)), vars, w && RTL.test(LANG)); }
 /* Chinese, Japanese and Korean: no spaces to wrap at (Korean has them, but its
    short choices stay whole too), and each its own fonts. */
 const CJK = /^(zh|ja|ko)/;
@@ -2532,7 +2535,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>${Object.entries({ ...CJK_
    unless vars say. */
 let PLURAL = null;
 const isOne = (n) => { try { PLURAL ||= new Intl.PluralRules(LANG); return PLURAL.select(n) === "one"; } catch { return n === 1; } };
-function trn(n, one, other, vars) { const s = isOne(n) ? one : other, w = DICT && DICT[s]; return trFill(w || trBare(s), { n, ...vars }, w && RTL.test(LANG)); }
+function trn(n, one, other, vars) { const s = isOne(n) ? one : other, w = DICT && DICT[s]; return trFill(caskelBrand(w || trBare(s)), { n, ...vars }, w && RTL.test(LANG)); }
 setLang(window.KIRI_LANG?.pick);
 // The page runs in the Mac app, through kiri-win on Windows and in the GTK
 // window on Linux (both set KIRI_OS). Words that name the computer come from here.
@@ -3299,15 +3302,11 @@ function localUrl(c, name) {
   return `${scheme}://${chosen || (project ? `${c.Labels["com.docker.compose.service"]}.${project}` : name)}.${ui.suffix}${port}`;
 }
 
-/* The tiny Kiri: the mark's body, lid and eyes. */
-const KIRI_MARK = `<svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(6 0) skewX(-10)">
-  <clipPath id="lid-cloud"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath><rect x="22" y="12" width="34" height="40" rx="10" fill="#E0B420"/>
-  <g clip-path="url(#lid-cloud)"><rect x="10" y="0" width="60" height="21.5" fill="#F2CF5B"/></g>
-  <g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g>
-  <g fill="currentColor"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></svg>`;
-const KDOT = `<svg class="kdot" viewBox="0 0 30 32" aria-hidden="true"><g transform="skewX(-10) translate(5 0)"><rect x="2" y="1" width="26" height="30" rx="8" fill="#E0B420"/>
-  <path d="M2 9a8 8 0 0 1 8-8h10a8 8 0 0 1 8 8v-.5H2z" fill="#F2CF5B"/>
-  <ellipse cx="12" cy="15" rx="2.6" ry="3" fill="#0F1419"/><ellipse cx="20" cy="15" rx="2.6" ry="3" fill="#0F1419"/></g></svg>`;
+/* Original Caskel mark: container bracket and three stacked rails.
+   This code is independent of upstream Kiri's mascot and artwork. */
+const CASKEL_GLYPH = `<rect x="4" y="4" width="88" height="88" rx="21" fill="#14232D"/><path d="M65 25H41C27 25 21 33 21 48s6 23 20 23h24" fill="none" stroke="#54D7AA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><path d="M51 39h13M51 48h17M51 57h13" fill="none" stroke="#EAF9F4" stroke-width="4.5" stroke-linecap="round"/>`;
+const CASKEL_MARK = `<svg class="mark" viewBox="0 0 96 96" aria-hidden="true">${CASKEL_GLYPH}</svg>`;
+const KDOT = `<svg class="kdot" viewBox="0 0 32 32" aria-hidden="true"><g transform="scale(.3333)">${CASKEL_GLYPH}</g></svg>`;
 const localChip = (url) => `<button class="local" data-open="${esc(url)}" title="${tr("Open {url}", { url: esc(url) })}"><span>${esc(url.replace(/^https?:\/\//, ""))}</span></button>`;
 
 /* First open: two small pictures of the same app, by port and by name. */
@@ -3317,9 +3316,7 @@ const pictureBar = (url, kiri) => `<svg viewBox="0 0 160 84" aria-hidden="true">
   <rect x="10" y="20" width="140" height="18" rx="9" style="fill:var(--raised);stroke:var(--line)"/>
   <text x="20" y="32.5" font-size="9.5" style="font-family:var(--mono-font);fill:var(--text)">${url}</text>
   ${kiri ? "" : `<rect x="10" y="48" width="74" height="6" rx="3" style="fill:var(--line)"/><rect x="10" y="60" width="52" height="6" rx="3" style="fill:var(--line)"/>`}
-  ${kiri ? `<g transform="translate(67 44) skewX(-10)"><rect x="4" y="2" width="26" height="30" rx="8" fill="#E0B420"/>
-    <path d="M4 10a8 8 0 0 1 8-8h10a8 8 0 0 1 8 8v-.5H4z" fill="#F2CF5B"/>
-    <ellipse cx="14" cy="16" rx="2.6" ry="3" fill="#0F1419"/><ellipse cx="22" cy="16" rx="2.6" ry="3" fill="#0F1419"/></g>` : ""}
+  ${kiri ? `<g transform="translate(62 43) scale(.35)">${CASKEL_GLYPH}</g>` : ""}
 </svg>`;
 
 /* Linux: the window opens on this checklist, not the main window, until Kiri can run containers for
@@ -3340,7 +3337,7 @@ const ONB = [
   tr("Your account can use Kiri"), tr("Checked once the engine runs"), tr("Applies after you log out and back in"), tr("Allow access"),
   tr("docker uses Kiri"), tr("docker, Compose and Docker-socket tools reach Kiri"), tr("docker talks to another engine now"), tr("Checked once your account can use Kiri"), tr("Use Kiri"),
   tr("Builds"), tr("docker build runs on Kiri's builder"), tr("Set up Kiri's builder so docker build runs here. Nothing downloads until your first build"), tr("Set up")];
-const ONB_LOGO = `<svg class="logo" viewBox="100 100 824 824" aria-hidden="true"><defs><linearGradient id="onb-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B232C"/><stop offset="1" stop-color="#0F1419"/></linearGradient><radialGradient id="onb-gl" cx="0.62" cy="0.46" r="0.55"><stop offset="0" stop-color="#E0B420" stop-opacity="0.28"/><stop offset="1" stop-color="#E0B420" stop-opacity="0"/></radialGradient><linearGradient id="onb-bx" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDC23A"/><stop offset="1" stop-color="#CC9A0C"/></linearGradient><clipPath id="onb-ic"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#onb-bg)"/><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#onb-gl)"/><g transform="translate(154.2 136.6) scale(11.732)"><g transform="translate(6 0) skewX(-10)"><rect x="22" y="12" width="34" height="40" rx="10" fill="url(#onb-bx)"/><g clip-path="url(#onb-ic)" fill="#F2CF5B"><rect x="10" y="0" width="60" height="21.5"/></g><g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g><g fill="#F6F2EA"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></g></svg>`;
+const ONB_LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true">${CASKEL_GLYPH}</svg>`;
 const onbIcon = (name) => `<svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="${PH[name]}"/></svg>`;
 function onboarding(e) {
   ui.onb = { ...e, busy: null };
@@ -3369,11 +3366,17 @@ function drawOnb() {
   const stateOf = (k) => (busy && covers(k) && c[k] !== "ok" ? "wait" : c[k]);
   const icon = (st) => st === "ok" ? onbIcon("check") : st === "bad" ? onbIcon("warning") : st === "restart" ? onbIcon("restart") : st === "wait" ? "" : onbIcon("dot");
   const say = (v) => (typeof v === "function" ? v(esc(o.user || tr("your account"))) : v ? tr(v) : "");
+  // Onboarding is Caskel's isolated Linux service, not the old Kiri
+  // installer. Preserve stable translation keys while correcting the
+  // service and socket paths shown in all languages.
+  const onbSay = (v) => say(v).replace(/kiri\.service/g, "caskel.service")
+    .replace(/\/run\/kiri\/docker\.sock/g, "/run/caskel/docker.sock")
+    .replace(/\bkiri\b/gi, "Caskel");
   const rows = ONB.map((row) => {
     const [k, title, words, fix, root] = row, st = stateOf(k), label = fixable(row), skip = isSkipped(k);
     const first = pending[0]?.[0] === k;
     const canSkip = ONB_SKIP[k] && label && !skip && o.ready;
-    const text = skip ? tr(ONB_SKIP[k]) : say(words[c[k]]);
+    const text = skip ? tr(ONB_SKIP[k]) : onbSay(words[c[k]]);
     const extra = skip ? `<button class="linkish" data-onbskip="${k}" data-undo="1"${busy ? " disabled" : ""}>${tr("Undo")}</button>`
       : canSkip ? `<button class="linkish" data-onbskip="${k}"${busy ? " disabled" : ""}>${tr("Skip")}</button>` : "";
     return `<div class="onb-row${skip ? " skipped" : ""}" data-check="${k}"><div class="st ${skip ? "no" : st}">${icon(skip ? "no" : st)}</div><div class="t"><div>${tr(title)}</div><p>${text}</p></div>${extra}${label && !skip ? `<button class="btn${first ? " primary" : ""}" data-onbfix="${k}"${busy ? " disabled" : ""}>${root ? onbIcon("lock") : ""}${tr(label)}</button>` : ""}</div>`;
@@ -3574,8 +3577,8 @@ const ctxBytes = (v) => { const m = /^([\d.]+)\s*([kMGT]?)B$/i.exec(String(v || 
 
 function ctxStatusItem() {
   if (!ui.status) return "";
-  if (!ctxOther()) return `<span class="sep">·</span><span class="item ctx-ok" title="${tr("The docker command uses {app}", { app: esc(ui.status.app || "Kiri") })}"><i></i>docker → ${esc(ui.status.app || "Kiri")}</span>`;
-  return `<span class="sep">·</span><button class="item ctx-warn" data-ctxswitch title="${tr("The docker command uses {engine}. Switch it to {app}", { engine: esc(ctxLabel(ui.status.context)), app: esc(ui.status.app || "Kiri") })}">${ctxWarn()}docker → ${esc(rtl() ? island(ctxLabel(ui.status.context)) : ctxLabel(ui.status.context))}</button>`;
+  if (!ctxOther()) return `<span class="sep">·</span><span class="item ctx-ok" title="${tr("The docker command uses {app}", { app: esc(ui.status.app || "Caskel") })}"><i></i>docker → ${esc(ui.status.app || "Caskel")}</span>`;
+  return `<span class="sep">·</span><button class="item ctx-warn" data-ctxswitch title="${tr("The docker command uses {engine}. Switch it to {app}", { engine: esc(ctxLabel(ui.status.context)), app: esc(ui.status.app || "Caskel") })}">${ctxWarn()}docker → ${esc(rtl() ? island(ctxLabel(ui.status.context)) : ctxLabel(ui.status.context))}</button>`;
 }
 
 function renderCtxStrip() {
@@ -3583,7 +3586,7 @@ function renderCtxStrip() {
   if (!ctxOther() || !["containers", "images"].includes(ui.view) || Date.now() < (prefs.ctxSnooze || 0) || ctx.card) return false;
   el.innerHTML = `${ctxWarn("is-warn")}
     <span class="is-text">${tr("<b>docker still uses {engine}</b>, so what you run in the terminal won't show up here. Your images can come along.", { engine: esc(ctxLabel(ui.status.context)) })}</span>
-    <button class="btn sm primary" data-ctxswitch>${tr("Switch to {app}", { app: esc(ui.status.app || "Kiri") })}</button>
+    <button class="btn sm primary" data-ctxswitch>${tr("Switch to {app}", { app: esc(ui.status.app || "Caskel") })}</button>
     <button class="is-x" data-ctxsnooze title="${tr("Not now: ask again in a week")}" aria-label="${tr("Not now")}">×</button>`;
   el.classList.add("ctx");
   el.hidden = false;
@@ -3599,7 +3602,7 @@ function ctxImages(from) {
 function ctxDialog() {
   if (!ctxOther()) return;
   $("ctx-dlg")?.remove();
-  const from = ui.status.context, label = ctxLabel(from), app = ui.status.app || "Kiri";
+  const from = ui.status.context, label = ctxLabel(from), app = ui.status.app || "Caskel";
   const src = ui.imp.sources?.find((s) => s.id === from), imgs = ctxImages(from), inv = ui.imp.inv;
   if (src?.running && !imgs) send("inventory", { name: from });
   const bytes = (imgs || []).reduce((a, v) => a + ctxBytes(v.size), 0);
@@ -3672,7 +3675,7 @@ function ctxStep(e) {
 function drawCtxCard() {
   const el = $("ctxcard"), c = ctx.card;
   if (!c) { el.hidden = true; el.innerHTML = ""; renderImportStrip(); return; }
-  const label = esc(ctxLabel(c.from)), app = esc(ui.status?.app || "Kiri"), n = c.done + c.failed;
+  const label = esc(ctxLabel(c.from)), app = esc(ui.status?.app || "Caskel"), n = c.done + c.failed;
   const body = !c.total ? `<div class="sub">${tr("Your {engine} images stay there. Bring them over any time from Settings → Import.", { engine: label })}</div>`
     : c.finished ? `<div class="sub">${c.failed ? trn(c.done, "Brought {n} item over from {engine}; {failed} failed (Settings → Import says why).", "Brought {n} items over from {engine}; {failed} failed (Settings → Import says why).", { engine: label, failed: c.failed }) : trn(c.done, "Brought {n} item over from {engine}.", "Brought {n} items over from {engine}.", { engine: label })}</div>`
     : `<div class="sub">${tr("Bringing your images over from {engine}: {done} of {total}.", { engine: label, done: n, total: c.total })}</div><div class="ctx-prog"><i style="width:${Math.round(n / c.total * 100)}%"></i></div><div class="sub">${tr("They appear in Images as they arrive.")}</div>`;
@@ -3863,7 +3866,7 @@ function buildsPane() {
     : kiri && !b.taken ? `<p class="muted">${tr("Another builder has been picked for {build} since ({use}). Choose Kiri again to build on Kiri.", { build: cmd("docker build"), use: cmd("docker buildx use") })}</p>` : "";
   return `<div class="pane"><h3>${tr("Builds")}</h3>
     <div class="pref"><span class="t">${tr("Build with")}</span><span class="d">${desc}</span>
-      <div class="seg" role="group" aria-label="${tr("Build with")}"><button data-bw="docker" aria-pressed="${!kiri}">Docker</button><button data-bw="kiri" aria-pressed="${kiri}">Kiri</button></div></div>
+      <div class="seg" role="group" aria-label="${tr("Build with")}"><button data-bw="docker" aria-pressed="${!kiri}">Docker</button><button data-bw="kiri" aria-pressed="${kiri}">Caskel</button></div></div>
     ${note}
     ${builderPref()}
     <p class="muted">${tr("{cmd} always builds on Kiri. A switch applies at once, in terminals already open too. Switching back to Docker puts docker's build settings back as they were before Kiri changed them.", { cmd: cmd("kiri build") })}</p>
@@ -4023,21 +4026,17 @@ function renderSettings() {
   const a = about;
   const mib = (b) => (b ? `${(b / 1073741824).toFixed(1)} GB` : "—");
   const aboutPane = `<div class="pane about"><div class="about-head">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(6 0) skewX(-10)"><clipPath id="lid2"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath>
-        <rect x="22" y="12" width="34" height="40" rx="10" fill="#E0B420"/><g clip-path="url(#lid2)"><rect x="10" y="0" width="60" height="21.5" fill="#F2CF5B"/></g>
-        <g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g>
-        <g fill="currentColor" opacity=".55"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></svg>
-      <div><div class="n">Kiri <span class="devband">DEV</span></div><div class="muted">${tr("A small, fast container runtime.")}</div></div></div>
+      ${CASKEL_MARK}
+      <div><div class="n">Caskel <span class="devband">DEV</span></div><div class="muted">${tr("A small, fast container runtime.")}</div></div></div>
     ${aboutUpdate(a?.app)}
     <dl>
-      <dt>${tr("Engine")}</dt><dd>${a?.running ? `Kiri ${esc(a.engine)} · Docker API ${esc(a.api)}` : tr("Not running")}</dd>
+      <dt>${tr("Engine")}</dt><dd>${a?.running ? `Caskel ${esc(a.engine)} · Docker API ${esc(a.api)}` : tr("Not running")}</dd>
       <dt>${tr(VM)}</dt><dd>${a?.running ? `${a.awake ? tr("Running") : tr("Asleep")} · ${tr("kernel {version}", { version: esc(a.kernel) })}` : "—"}</dd>
       <dt>${tr("CPUs")}</dt><dd>${esc(a?.cpus ?? "—")}</dd>
       <dt>${tr("Memory")}</dt><dd>${a?.running ? tr("up to {size}", { size: mib(a.memory) }) : "—"}</dd>
-      <dt>${tr("Website")}</dt><dd><a data-open-site="https://runkiri.com">runkiri.com</a></dd>
-      <dt>${tr("Made by")}</dt><dd><a data-open-site="https://canestack.com">Canestack Labs</a></dd>
-    </dl>
-    <p class="muted">${tr("The name comes from the Igbo word ntakịrị, “small”.")}</p></div>`;
+      <dt>${tr("Website")}</dt><dd><a data-open-site="https://github.com/sguzman/caskel">Caskel</a></dd>
+      <dt>${tr("Made by")}</dt><dd><a data-open-site="https://github.com/sguzman/caskel">Caskel</a></dd>
+    </dl></div>`;
   const html = `<div class="settings"><div class="tabs">${tab("appearance", "textaa", tr("Appearance"))}${tab("resources", "stack", tr("Resources"))}${tab("network", "globe", tr("Network"))}${tab("builds", "hammer", tr("Builds"))}${loginsOn() ? tab("registries", "lock", tr("Registries")) : ""}${tab("kubernetes", "pods", "Kubernetes")}${tab("import", "stack", tr("Import"))}${tab("domains", "network", tr("Domains"))}${tab("diagnostics", "bug", tr("Diagnostics"))}${tab("about", "info", tr("About"))}</div>
     ${prefs.tab === "diagnostics" ? diagPane() : prefs.tab === "about" ? aboutPane : prefs.tab === "domains" ? domainsPane : prefs.tab === "resources" ? `<div class="panes">${enginePane()}${resourcesPane()}</div>` : prefs.tab === "network" ? networkPane() : prefs.tab === "builds" ? buildsPane() : prefs.tab === "registries" && loginsOn() ? registriesPane() : prefs.tab === "kubernetes" ? kubernetesPane() : prefs.tab === "import" ? importPane() : appearance}</div>`;
   // The container lists arrive every few seconds; rebuilding an unchanged page
@@ -5284,7 +5283,7 @@ setInterval(() => {
 }, 2000);
 
 // Feedback goes to the repo's GitHub issues; the app's "open" handler allows exactly this address.
-const FEEDBACK_URL = "https://github.com/libracoder/kiri/issues/new";
+const FEEDBACK_URL = "https://github.com/sguzman/caskel/issues/new";
 
 /* The VM's memory: under 1 GB in MB, so an idle VM doesn't read as "0.2". */
 const memText = (mib) => (mib < 1024 ? `${Math.round(mib)} MB` : `${(mib / 1024).toFixed(1)} GB`);
@@ -5332,7 +5331,7 @@ function renderStatus() {
   const vmText = { running: tr("{vm} running", { vm: tr(VM) }), stopped: tr("{vm} off", { vm: tr(VM) }), booting: tr("Starting…"), stopping: tr("Stopping…") }[vshown] || vshown;
   const mem = ui.mem ? tr("{used} of {total}", { used: memText(ui.mem.used), total: `${Math.round(ui.mem.ceiling / 1024)} GB` }) : "";
   const parts = [
-    `<span class="item">${KDOT}<span>Kiri ${esc(ui.status?.version || "")}</span>${ui.status?.dev ? `<span class="dev" title="${tr("{app}: its own engine, containers and settings", { app: esc(ui.status?.app || "Kiri Dev") })}">DEV</span>` : ""}</span>`,
+    `<span class="item">${KDOT}<span>Caskel ${esc(ui.status?.version || "")}</span>${ui.status?.dev ? `<span class="dev" title="${tr("{app}: its own engine, containers and settings", { app: esc(ui.status?.app || "Caskel Dev") })}">DEV</span>` : ""}</span>`,
     usageItem(),
     updateChip(),
     pullItem(),
@@ -5484,10 +5483,7 @@ function notesHtml(md) {
     return `<section class="wn-group wn-${kind}">${head}<ul>${x.items.map((t) => `<li style="--i:${i++}">${inline(t)}</li>`).join("")}</ul></section>`;
   }).join("");
 }
-const WN_KIRI = `<svg class="wn-kiri" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(6 0) skewX(-10)"><clipPath id="wnlid"><rect x="22" y="12" width="34" height="40" rx="10"/></clipPath>
-  <rect x="22" y="12" width="34" height="40" rx="10" fill="#E0B420"/><g clip-path="url(#wnlid)"><rect x="10" y="0" width="60" height="21.5" fill="#F2CF5B"/></g>
-  <g fill="#0F1419"><ellipse cx="41.5" cy="29" rx="3.1" ry="3.6"/><ellipse cx="50.5" cy="29" rx="3.1" ry="3.6"/></g></g>
-  <g class="speed" fill="currentColor" opacity=".55"><rect x="5" y="21.5" width="13" height="5" rx="2.5"/><rect x="1" y="32" width="15" height="5" rx="2.5"/><rect x="7" y="42.5" width="7" height="5" rx="2.5"/></g></svg>`;
+const WN_CASKEL = `<svg class="wn-caskel" viewBox="0 0 96 96" aria-hidden="true">${CASKEL_GLYPH}</svg>`;
 function openNotes() {
   wnModal?.remove();
   wnModal = document.createElement("div");
@@ -5518,7 +5514,7 @@ function drawNotes() {
   wnModal.innerHTML = `<div class="wn-dialog" role="dialog" aria-modal="true" aria-labelledby="wn-title">
     <div class="wn-hero">
       <button class="close" data-wn="close" aria-label="${tr("Close")}">${UPD_ICON.x}</button>
-      <div class="wn-stage">${WN_KIRI}<div class="wn-vers">${u.current ? `<span class="wn-ver old">${esc(u.current)}</span><span class="wn-arrow">→</span>` : ""}<span class="wn-ver new">${esc(u.version)}</span><i class="wn-spark"></i><i class="wn-spark"></i><i class="wn-spark"></i><i class="wn-spark"></i></div></div>
+      <div class="wn-stage">${WN_CASKEL}<div class="wn-vers">${u.current ? `<span class="wn-ver old">${esc(u.current)}</span><span class="wn-arrow">→</span>` : ""}<span class="wn-ver new">${esc(u.version)}</span><i class="wn-spark"></i><i class="wn-spark"></i><i class="wn-spark"></i><i class="wn-spark"></i></div></div>
       <h3 id="wn-title">${tr("What's new in Kiri {version}", { version: esc(u.version) })}</h3>
       <p>${u.current ? `${tr("You have {version}.", { version: esc(u.current) })} ` : ""}${tr("Your containers keep running while it downloads.")}</p>
     </div>
@@ -6296,10 +6292,10 @@ function closable(el, close) {
   el.querySelector(".tclose").addEventListener("click", (ev) => { ev.stopPropagation(); close(); });
 }
 
-/* Star Kiri, asked once ever: the first time something works (a container
+/* Star Caskel, asked once ever: the first time something works (a container
    started, a pull done, a share link live, Kubernetes up), a card a moment
    after that toast. ui.json keeps starAsked, so it never comes back. */
-const STAR_URL = "https://github.com/libracoder/kiri";
+const STAR_URL = "https://github.com/sguzman/caskel";
 const STAR_IC = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.6l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5-4.9-4.5 6.6-.8Z"/></svg>`;
 let prefsIn = false, starTimer = 0;
 function starMoment(text) {
@@ -8517,7 +8513,7 @@ function shCardOne(it) {
   // Visitors → Kiri Cloud → the container: a dot travels along for each request.
   const flow = `<div class="sh-flow" aria-hidden="true">
       ${node(shSvg("globe"), tr("Visitors"))}
-      <div class="sh-lane"></div>${node(KIRI_MARK, "Kiri Cloud", "kiri")}<div class="sh-lane"></div>
+      <div class="sh-lane"></div>${node(`<svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="33" fill="none" stroke="currentColor" stroke-width="6"/><path d="M15 48h66M48 15c-26 17-26 49 0 66M48 15c26 17 26 49 0 66" fill="none" stroke="currentColor" stroke-width="5"/></svg>`, "Kiri Cloud", "kiri")}<div class="sh-lane"></div>
       ${node(kShTile(it) || (c ? tile(c.icon, "cube") : `<div class="tile">${shGlobe}</div>`), `${esc(kShName(it))}${port ? `<em>:${port}</em>` : ""}`)}</div>`;
   return `<div class="dialog sh-dlg" role="dialog" aria-modal="false" aria-labelledby="sh-dlg-t">
     <button class="sh-x" data-close aria-label="${tr("Hide")}">×</button>

@@ -53,7 +53,7 @@ pub fn state_dir() -> io::Result<PathBuf> {
 
 /// `~/.kiri/run/docker.sock`, beside OrbStack's `~/.orbstack/run/docker.sock`.
 pub fn socket_path() -> io::Result<PathBuf> {
-    if let Some(s) = std::env::var_os("KIRI_SOCKET") {
+    if let Some(s) = std::env::var_os("CASKEL_SOCKET").or_else(|| std::env::var_os("KIRI_SOCKET")) {
         return Ok(PathBuf::from(s));
     }
     let home = std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| io::Error::other("HOME is not set"))?;
@@ -112,7 +112,7 @@ pub fn run(_args: &[String]) -> io::Result<()> {
     std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))?;
     // On a Linux host the daemon runs as root; `KIRI_SOCKET_GROUP=kiri`
     // lets that group's users in, as the docker group does for dockerd.
-    let access_group = std::env::var_os("KIRI_SOCKET_GROUP");
+    let access_group = std::env::var_os("CASKEL_SOCKET_GROUP").or_else(|| std::env::var_os("KIRI_SOCKET_GROUP"));
     if let Some(group) = &access_group {
         socket_group(&socket, group)?;
     }
@@ -133,7 +133,7 @@ pub fn run(_args: &[String]) -> io::Result<()> {
         None => None,
     };
 
-    let store = kiri_image::Store::open(kiri_image::Store::default_root()?)?;
+    let store = caskel_image::Store::open(caskel_image::Store::default_root()?)?;
     let engine = engine::Engine::boot(store).inspect_err(|e| diag::error!("engine did not start", error = e))?;
     diag::info!("engine ready", version = env!("CARGO_PKG_VERSION"), ms = t0.elapsed().as_millis(), socket = format!("unix://{}", socket.display()));
     // Crash files from earlier runs, if the person said they may go.
@@ -142,7 +142,7 @@ pub fn run(_args: &[String]) -> io::Result<()> {
     // own disk already.
     #[cfg(target_os = "macos")]
     finder(&engine);
-    kiri_image::set_proxy_source(proxy::for_registry);
+    caskel_image::set_proxy_source(proxy::for_registry);
     // The managed BuildKit stops itself when builds have been idle a while.
     builder::watch(engine.clone());
     // A Kubernetes node the engine restarted gets its kubectl context.

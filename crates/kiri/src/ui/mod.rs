@@ -394,7 +394,7 @@ pub(crate) fn reveal(path: &std::path::Path) {
 /// Caskel's local UI state; Linux normally uses its own service socket.
 /// Preserve the `KIRI_SOCKET` compatibility override used by tests.
 pub(crate) fn state_dir() -> Option<std::path::PathBuf> {
-    if std::env::var_os("KIRI_SOCKET").is_none() {
+    if std::env::var_os("CASKEL_SOCKET").is_none() && std::env::var_os("KIRI_SOCKET").is_none() {
         return std::env::var_os("HOME").map(|h| std::path::Path::new(&h).join(crate::flavor::STATE.get()));
     }
     client::socket().ok()?.parent()?.parent().map(std::path::Path::to_path_buf)
@@ -1159,7 +1159,7 @@ fn pulling() -> std::sync::MutexGuard<'static, Vec<Pulling>> {
 /// The page asked for a pull: noted, so Cancel finds it even while it waits.
 fn asked_to_pull(name: &str) {
     static RUN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let Ok(r) = kiri_image::Reference::parse(name.trim()) else { return };
+    let Ok(r) = caskel_image::Reference::parse(name.trim()) else { return };
     let run = RUN.fetch_add(1, Ordering::Relaxed);
     pulling().push(Pulling { run, name: r.short(), taken: false, conn: None, cancelled: false });
 }
@@ -1185,7 +1185,7 @@ fn pull(name: String) {
     let op = diag::op();
     let spawned = std::thread::Builder::new().name("kiri-pull".into()).spawn(move || {
         let _op = op.map(diag::enter_op);
-        let reference = match kiri_image::Reference::parse(name.trim()) {
+        let reference = match caskel_image::Reference::parse(name.trim()) {
             Ok(r) => r.short(),
             Err(e) => return emit(notice("error", &e.to_string())),
         };
@@ -1952,7 +1952,7 @@ fn handle(text: &str, tx: &Sender<Cmd>, autostart: bool, view: Option<&str>) {
             let local = msg.name.strip_prefix("http://").or_else(|| msg.name.strip_prefix("https://")).and_then(|r| r.split(['/', ':']).next()).is_some_and(|h| h == "localhost" || h.ends_with(".kiri.localhost") || h.ends_with(".kiri.local"));
             // A build warning's rule page (docs.docker.com/go/dockerfile/rule/…).
             let docs = msg.name.strip_prefix("https://docs.docker.com/go/").is_some_and(|rest| rest.bytes().all(|b| b.is_ascii_alphanumeric() || b"-/".contains(&b)));
-            if local || docs || msg.name == "https://runkiri.com" || msg.name == "https://runkiri.com/share/notice" || msg.name == "https://canestack.com" || msg.name == "https://github.com/libracoder/kiri/issues/new" || msg.name == "https://github.com/libracoder/kiri" || msg.name == "https://github.com/anchore/grype" || msg.name == "https://login.docker.com/activate" || msg.name == "https://github.com/login/device" {
+            if local || docs || msg.name == "https://github.com/sguzman/caskel" || msg.name == "https://github.com/sguzman/caskel/issues/new" || msg.name == "https://runkiri.com" || msg.name == "https://runkiri.com/share/notice" || msg.name == "https://canestack.com" || msg.name == "https://github.com/libracoder/kiri/issues/new" || msg.name == "https://github.com/libracoder/kiri" || msg.name == "https://github.com/anchore/grype" || msg.name == "https://login.docker.com/activate" || msg.name == "https://github.com/login/device" {
                 open(&msg.name);
             }
             Ok(())

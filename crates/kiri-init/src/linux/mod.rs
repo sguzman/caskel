@@ -24,7 +24,7 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-use kiri_proto::{HOST_PORT, Hello, Msg, PROTOCOL};
+use caskel_proto::{HOST_PORT, Hello, Msg, PROTOCOL};
 
 use sys::{boottime_ns, check, mount};
 

@@ -16,7 +16,7 @@ use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::time::Duration;
 
-use kiri_proto::USB_PORT;
+use caskel_proto::USB_PORT;
 
 /// Shared with the engine, which reads the same for a Linux host's devices.
 #[path = "../../../kiri/src/usb/sysfs.rs"]
@@ -83,7 +83,7 @@ fn free_port(speed: u32) -> io::Result<u32> {
 }
 
 /// `PORT\tPATH\tWHAT` for every node of every attached device (see
-/// `kiri_proto::Msg::UsbNodes`).
+/// `caskel_proto::Msg::UsbNodes`).
 pub fn nodes() -> Vec<String> {
     let status = fs::read_to_string(format!("{VHCI}/status")).unwrap_or_default();
     attached(&status)

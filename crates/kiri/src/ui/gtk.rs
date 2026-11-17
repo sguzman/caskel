@@ -26,15 +26,15 @@ thread_local! {
 
 /// Before the page's own scripts: which system this is.
 const SHIM: &str = r#"window.KIRI_OS = "linux";"#;
+const ICON_SVG: &[u8] = include_bytes!("../../../../brand/caskel-mark.svg");
 
-const ICON_PNG: &[u8] = include_bytes!("../../../../brand/icon/png/kiri-app-icon-512.png");
 
 /// `autostart` starts the engine as soon as the page has loaded; `view` picks
 /// the sidebar section to open on.
 pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
     // The desktop file's name, before GTK starts: on Wayland it's the window's
     // app id, which is how the dock finds Kiri's launcher and icon.
-    glib::set_prgname(Some("kiri"));
+    glib::set_prgname(Some("caskel"));
     gtk::init().map_err(|e| io::Error::other(format!("no display to open the window on ({e})")))?;
     let (tx, rx) = mpsc::channel();
     let engine_tx = tx.clone();
@@ -42,8 +42,12 @@ pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title(crate::flavor::APP.get());
+    // Original Caskel SVG mark, with a fallback if this GTK host has no
+    // gdk-pixbuf SVG loader. No Kiri trademark assets are embedded.
     if let Some(icon) = icon() {
         window.set_icon(Some(&icon));
+    } else {
+        window.set_icon_name(Some("application-x-executable"));
     }
     // 1280x800, never more than nine tenths of the screen, as on the Mac and Windows.
     let (mut w, mut h) = (1280, 800);
@@ -95,7 +99,7 @@ pub fn run(autostart: bool, view: Option<String>) -> io::Result<()> {
 
 fn icon() -> Option<Pixbuf> {
     let loader = PixbufLoader::new();
-    loader.write(ICON_PNG).ok()?;
+    loader.write(ICON_SVG).ok()?;
     loader.close().ok()?;
     loader.pixbuf()
 }

@@ -10,8 +10,8 @@ use std::os::fd::{AsFd, OwnedFd};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use kiri_proto::{HEADER, Hello, LayerBegin, Msg, Stream};
-use kiri_vmm::{Config, Event, Vm};
+use caskel_proto::{HEADER, Hello, LayerBegin, Msg, Stream};
+use caskel_agent_transport::{Config, Event, Vm};
 
 /// How long each boot stage took, measured from the host.
 #[derive(Debug, Clone, Copy)]
@@ -105,7 +105,7 @@ impl Guest {
         let cfg = Config {
             agent: agent_binary(),
             console: console_output(opts)?,
-            agent_port: kiri_proto::HOST_PORT,
+            agent_port: caskel_proto::HOST_PORT,
         };
         Self::start(cfg)
     }
@@ -142,11 +142,11 @@ impl Guest {
         };
         // The agent comes from the same install, so another version means the
         // files changed under a running Kiri: stop rather than misread it.
-        if guest.hello.protocol != kiri_proto::PROTOCOL {
+        if guest.hello.protocol != caskel_proto::PROTOCOL {
             return Err(io::Error::other(format!(
                 "the agent speaks protocol {}, this Caskel daemon speaks {}: restart Caskel using one version",
                 guest.hello.protocol,
-                kiri_proto::PROTOCOL
+                caskel_proto::PROTOCOL
             )));
         }
         guest.timings.agent_ready = t0.elapsed();
@@ -217,9 +217,9 @@ impl Guest {
     pub fn run(&mut self, req: &RunRequest<'_>, mut on_output: impl FnMut(Stream, &[u8])) -> io::Result<RunResult> {
         self.out.clear();
         let none: &[String] = &[];
-        let net = kiri_proto::Net { bridge: "", ip: [0; 4], prefix: 0, gateway: [0; 4], extra_hosts: none, dns_names: none, opts: none };
-        kiri_proto::encode_run(
-            &mut self.out, req.id, req.layers, req.argv, req.env, req.cwd, req.user, req.hostname, req.flags, net, none, &kiri_proto::Limits::default(), 0, none, &[],
+        let net = caskel_proto::Net { bridge: "", ip: [0; 4], prefix: 0, gateway: [0; 4], extra_hosts: none, dns_names: none, opts: none };
+        caskel_proto::encode_run(
+            &mut self.out, req.id, req.layers, req.argv, req.env, req.cwd, req.user, req.hostname, req.flags, net, none, &caskel_proto::Limits::default(), 0, none, &[],
         );
         let t = Instant::now();
         self.conn.write_all(&self.out)?;
@@ -274,11 +274,11 @@ impl Guest {
     fn read(&mut self) -> io::Result<Msg<'_>> {
         self.frame.resize(4, 0);
         self.conn.read_exact(&mut self.frame[..4])?;
-        let len = kiri_proto::frame_len(self.frame[..4].try_into().unwrap())
+        let len = caskel_proto::frame_len(self.frame[..4].try_into().unwrap())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
         self.frame.resize(len.max(HEADER), 0);
         self.conn.read_exact(&mut self.frame[4..])?;
-        kiri_proto::decode(&self.frame).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))
+        caskel_proto::decode(&self.frame).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))
     }
 }
 
@@ -286,10 +286,13 @@ fn unexpected(wanted: &str, got: &Msg<'_>) -> io::Error {
     io::Error::other(format!("expected {wanted}, got {got:?}"))
 }
 
-/// The agent on Linux: `KIRI_AGENT`, else `kiri-init` beside `caskel`.
+/// Prefer Caskel's configured native agent. The KIRI_AGENT override and
+/// old kiri-init filename are retained for installed compatibility profiles.
 fn agent_binary() -> PathBuf {
-    if let Some(p) = std::env::var_os("KIRI_AGENT") {
+    if let Some(p) = std::env::var_os("CASKEL_AGENT").or_else(|| std::env::var_os("KIRI_AGENT")) {
         return PathBuf::from(p);
     }
+    let bin = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("caskel-init")));
+    if let Some(bin) = bin.filter(|p| p.is_file()) { return bin; }
     std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("kiri-init"))).unwrap_or_else(|| PathBuf::from("kiri-init"))
 }

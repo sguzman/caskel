@@ -6,7 +6,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use kiri_proto::{ContainerStats, Limits};
+use caskel_proto::{ContainerStats, Limits};
 
 use super::sys;
 

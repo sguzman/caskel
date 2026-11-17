@@ -11,7 +11,7 @@ because an upstream document claimed support.
 ## Supported development baseline
 
 - Host platform: **x86_64 Linux**, tested with a pinned Nix flake.
-- Build output: `caskel` CLI/daemon, `kiri-init` internal Linux agent,
+- Build output: `caskel` CLI/daemon, `caskel-init` Linux agent,
   optional `caskel.service` unit.
 - Runtime: Linux process transport, namespaces, cgroups, filesystem layers,
   container processes, and a private Unix-socket Docker-compatible API.
@@ -41,9 +41,10 @@ persistent databases, restart rules, failures and restore behavior.
 ## Optional Linux interface
 
 The GTK/WebKitGTK window source remains in the repository, but the minimal
-Nix package is intentionally **headless**. A desktop package and GUI QA
-still need separate acceptance; inherited UI labels may mention older Kiri
-concepts until rebranding is finished.
+Nix package is intentionally **headless**. Current Linux UI artwork,
+translations and About branding are Caskel-native, but the optional
+GTK feature still needs separate build and real-desktop QA before release.
+Historical Kiri protocol paths remain compatible by design.
 
 ## Docker-to-Caskel migration
 

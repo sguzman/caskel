@@ -1,5 +1,7 @@
 # Caskel
 
+![Caskel original logo](brand/caskel-wordmark.svg)
+
 **Linux-first container runtime, written in Rust.**
 
 Caskel is a Linux-focused, independently maintained fork of
@@ -28,9 +30,9 @@ nix build .#caskel
 ```
 
 The flake exposes `packages.caskel`, `packages.default`, `apps.default`,
-`checks.caskel`, and `devShells.default`. The source Cargo packages retain
-upstream names internally (`kiri` and `kiri-init`) to ease upstream
-integration; the Nix package installs the public `caskel` command.
+`checks.caskel`, and `devShells.default`. The Cargo packages are now Caskel-named (`caskel`, `caskel-init`, and
+supporting `caskel-*` crates). Only compatibility-sensitive protocol fields,
+legacy runtime paths and the `kiri-init` executable symlink retain older names.
 
 **Building alone does not install or start a privileged service.** Follow
 [the Arch / EndeavourOS installation guide](nix/systemd/README.md) for a
@@ -68,9 +70,7 @@ The [verified development roadmap](docs/roadmap.md) tracks full-lifecycle milest
 4. Selective upstream synchronization and tracked security updates.
 5. Gradual, recoverable migration of self-hosted workloads.
 
-**The native Docker migration CLI is planned, not yet implemented.**
-Upstream's OrbStack/Docker Desktop importer does not currently support
-migrating a regular Linux Docker Engine directly.
+**The native, read-only Docker inventory is implemented** as `caskel migrate docker --list [--json]`; the migration dry-run and cutover are **not** implemented. Caskel does not yet move services or storage.
 
 ## Origins and license
 
@@ -80,6 +80,27 @@ logo are excluded from that license; Caskel does not claim or use them as its
 own branding. This project is not endorsed by upstream.
 
 See [UPSTREAM.md](UPSTREAM.md) for our branching/integration process,
-[LICENSE](LICENSE) and [NOTICE](NOTICE). Existing documentation under
-`docs/` may still describe upstream Kiri until adapted, including platform
-features not yet tested in this fork.
+[LICENSE](LICENSE) and [NOTICE](NOTICE). Historical release notes under `docs/releases/` document upstream Kiri and
+must not be read as Caskel release announcements. Current support is covered
+by `docs/features.md` and `RELEASES.md`.
+
+## Legacy Kiri Cloud separation
+
+Caskel is **not** Kiri Cloud. The inherited Share and diagnostics code
+still knows how to contact `edge.runkiri.com`, but it refuses that upstream
+endpoint unless the initiating process explicitly sets
+`CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1`. An old Kiri account or config file does
+not provide consent to send Caskel reports, account tokens or workload
+metadata. The opt-in is only for intentional compatibility with an
+upstream-operated service. There is **no Caskel Cloud** service or
+automatic report-upload agreement.
+
+## Runtime configuration identity
+
+On Linux, prefer `CASKEL_SOCKET`, `CASKEL_DATA_DIR`,
+`CASKEL_AGENT`, `CASKEL_SOCKET_GROUP`, `CASKEL_HTTP_PORT`, and
+`CASKEL_HTTPS_PORT`. The older `KIRI_*` spellings still work as fallbacks
+for pinned legacy units and test configurations; when both spellings are
+set, the Caskel form takes precedence. The shipped `caskel.service` uses
+only the canonical Caskel variables. Updating source does **not** replace a
+locally deployed systemd unit or restart an engine.

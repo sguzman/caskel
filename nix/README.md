@@ -16,7 +16,7 @@ nix build .#caskel
 ```
 
 ```fish
-ls -lh result/bin/caskel result/bin/kiri-init result/lib/systemd/system/caskel.service
+ls -lh result/bin/caskel result/bin/caskel-init result/lib/systemd/system/caskel.service
 ```
 
 ```fish
@@ -27,9 +27,11 @@ nix flake check
 nix develop
 ```
 
-The lockfile is committed. The public `caskel` binary is built from
-the original Cargo package `kiri`; `kiri-init` remains the internal
-runtime agent to ease integration of upstream changes.
+The lockfile is committed. The public `caskel` executable is built from
+the `caskel` Cargo package; the Linux agent is `caskel-init`. An old
+`kiri-init` compatibility symlink remains in the package for pinned
+deployments. The historical `crates/kiri-*` source directory names do
+not determine the public Cargo package names.
 
 The optional Linux GUI is not packaged in this minimal Nix build.
 Privileged runtime tests cannot run in the Nix build sandbox. GitHub Actions

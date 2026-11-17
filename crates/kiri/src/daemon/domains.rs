@@ -222,8 +222,24 @@ impl Kind {
     }
 }
 
-fn env_port(var: &str) -> Option<u16> {
+fn env_port_value(var: &str) -> Option<u16> {
     std::env::var(var).ok().and_then(|p| p.trim().parse().ok()).filter(|&p| p != 0)
+}
+
+/// Canonical CASKEL_* variables take precedence over historical KIRI_*
+/// options. Keep the old variables functional for pinned profile rollback.
+fn env_port(var: &str) -> Option<u16> {
+    var.strip_prefix("KIRI_")
+        .and_then(|suffix| env_port_value(&format!("CASKEL_{suffix}")))
+        .or_else(|| env_port_value(var))
+}
+
+fn active_port_var(var: &str) -> Option<String> {
+    if let Some(suffix) = var.strip_prefix("KIRI_") {
+        let canonical = format!("CASKEL_{suffix}");
+        if env_port_value(&canonical).is_some() { return Some(canonical); }
+    }
+    env_port_value(var).map(|_| var.to_owned())
 }
 
 /// Settings → Domains keeps the routers' ports here.
@@ -257,7 +273,7 @@ pub fn report() -> serde_json::Value {
             // stepped aside for a container.
             "running": r.is_some(),
             "serving": r.is_some_and(|r| !r.serving.lock().unwrap_or_else(PoisonError::into_inner).is_empty()),
-            "env": env_port(kind.var()).map(|_| kind.var()),
+            "env": active_port_var(kind.var()),
         });
     }
     v
@@ -347,7 +363,7 @@ fn serve(mut client: TcpStream, engine: &Engine) -> io::Result<()> {
 /// Reads the request head, finds the container its Host names and connects
 /// to it. `None` once it has answered by itself (no such container, an
 /// unreachable one, or a client that went away).
-fn route(client: &mut impl ReadWrite, engine: &Engine, scheme: &str) -> io::Result<Option<(Vec<u8>, kiri_vmm::VsockStream)>> {
+fn route(client: &mut impl ReadWrite, engine: &Engine, scheme: &str) -> io::Result<Option<(Vec<u8>, caskel_agent_transport::VsockStream)>> {
     let mut head = Vec::with_capacity(2048);
     let mut buf = [0u8; 4096];
     let end = loop {
