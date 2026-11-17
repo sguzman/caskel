@@ -18,7 +18,7 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | C2 | Prune Windows workspace, Apple dependencies, stale platform translations while retaining Linux runtime | 4 | 4 | Verified — PR #11 |
 | C3a | Remove unreachable Mac guest boot code and narrow Linux agent launch config | 2 | 2 | Verified — PR #12; all four checks passed |
 | C3b | Retire AppKit UI/backend and Mac-only UI strings, preserving Linux GTK path | 2 | 2 | Verified — PR #13, with optional GTK compilation addressed separately in PR #32 |
-| C4 | Audit and retire or adapt remaining unused guest kernels, platform assets and Linux packaging paths | 4 | 2 | Partial — PRs #15–#16 retired obsolete installer/scripts; #22, #28, #31 retired old brand, Mac icon and screenshot assets. Historical GPL guest-kernel corresponding source intentionally retained. Nix guest-source build-input isolation is under CI review; release/source-offer provenance audit remains open |
+| C4 | Audit and retire or adapt remaining unused guest kernels, platform assets and Linux packaging paths | 4 | 3 | Partial — prior installer/artwork cleanup (#15–#16, #22, #28, #31); Nix excludes the historical guest-kernel tree (#44, verified CI), upstream release-source metadata is inventoried, and old GPL material remains preserved. Independent archive correspondence and legal review remain open |
 | C5 | Rebrand internal agent/crate and runtime/public names with an explicit compatibility and rollback plan | 4 | 4 | Verified — #21, #27, #29, #30: Caskel Cargo/agent, public API, diagnostics, and canonical `CASKEL_*` service settings with documented legacy aliases and disposable CI |
 | D1 | Accurate Linux-first README and documented upstream-cherry-pick policy | 2 | 2 | Verified — PR #5, `UPSTREAM.md` |
 | D2 | Rewrite development, feature, security, release and contributor documentation for tested Linux behavior | 4 | 4 | Verified — PR #18, four CI workflows |
@@ -32,7 +32,7 @@ This is an evidence ledger, not a promise that a feature is complete just becaus
 | G1 | Multi-service Linux acceptance matrix for security, Compose, DNS/ports, data retention and restart/restore | 5 | 0 | Pending |
 | G2 | Pinned release and staged real-host promotion with repeatable rollback evidence | 5 | 0 | Pending — never auto-redeploy production |
 
-**Verified score after the branding PRs #21–#31:** **58 / 100** (+9 since the previous 49/100 ledger: platform-artifact audit +1, Caskel internal/runtime name migration +4, current-facing branding +4). This remains a *weighted engineering estimate* for the whole Linux runtime and future Docker migration—not a claim that Caskel's entire functionality is 58% tested. The inventory has 2 points reserved for QA on a representative Docker host. A GTK compile check was added separately in PR #32; a real desktop GUI acceptance session remains outstanding.
+**Verified score after C4 technical source isolation and release-metadata audit:** **59 / 100** (+1 following #44 and the documented provenance ledger; remaining GPL/release correspondence review is not verified). The branding baseline was **58 / 100** (+9 since the previous 49/100 ledger: platform-artifact audit +1, Caskel internal/runtime name migration +4, current-facing branding +4). This remains a *weighted engineering estimate* for the whole Linux runtime and future Docker migration—not a claim that Caskel's entire functionality is 58% tested. The inventory has 2 points reserved for QA on a representative Docker host. A GTK compile check was added separately in PR #32; a real desktop GUI acceptance session remains outstanding.
 
 ## Current priorities
 
@@ -46,7 +46,9 @@ languages, RTL/CJK desktop visuals, Linux Network-pane visuals and the last
 startup-toast fix were not individually manually retested. See the
 [desktop acceptance record](gtk-desktop-acceptance.md#real-desktop-acceptance-record--2026-11-17).
 The recorded limitations do **not** justify additional compulsory user
-localization QA. The 58/100 score is unchanged.
+localization QA. The branding QA itself left the score unchanged. The separately verified
+C4 build-input isolation and source-metadata audit contributes +1 (59/100);
+the final GPL provenance point is still open.
 
 Migration PRs #23 and #35 remain **unmerged** and must be re-reviewed against
 current main and the source-host safety boundary before work resumes.
