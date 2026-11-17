@@ -62,24 +62,21 @@ diagnostics as Caskel services.
 - Do not bulk-replace protocol/setting identifiers without versioned
   compatibility tests and an explicit rollback.
 
-## Repository profile settings (owner action required)
+## Repository profile settings (owner action completed)
 
 Source-level branding is independent of GitHub's repository profile.
-As verified on 2026-11-16, the GitHub **About** metadata still carried
-upstream's old text and external domain:
+The repository owner corrected the GitHub **About** metadata on 2026-11-17,
+confirmed from the repository API:
 
-- Replace description "A small, fast container runtime for macOS, Windows
-  and Linux with free Ngrok alternative" with
-  **"Linux-first Rust container engine with Docker-compatible API, pinned
-  Nix builds and isolated systemd integration."**
-- Remove homepage `https://runkiri.com` (or set it to the canonical
-  `https://github.com/sguzman/caskel` until Caskel has its own site).
-- Optional: set truthful topics such as `rust`, `linux`, `containers`,
-  `nix`, `docker-compatibility`.
+- The description is now **"Linux-first Rust container engine with
+  Docker-compatible API, pinned Nix builds and isolated systemd integration."**
+- The inherited homepage `https://runkiri.com` has been **cleared**.
+- Topics remain optional (currently empty). Suggested truthful topics include
+  `rust`, `linux`, `containers`, `nix`, `docker-compatibility`.
 - GitHub Issues are currently disabled, so issue templates remain dormant
-  until the owner deliberately enables them.
+  unless the owner enables them separately.
 
-The GitHub connector available for this work supports commit/PR editing
-but not repository-profile mutation. None of the above owner-only changes
-are claimed as completed or allowed to block source tests. The existing
-upstream legal attribution and GPL source obligations remain unchanged.
+The connected GitHub source/PR interface cannot mutate repository-profile
+metadata; that owner-only action is **complete** and is not an outstanding
+branding blocker. Historical attribution and GPL source obligations remain
+unchanged. **Real Linux GTK desktop acceptance is still outstanding.**
