@@ -125,7 +125,11 @@ jobs:
           # Keep the temporary non-Caskel host listener from surviving test failures.
           port_owner_pid=
           udp_owner_pid=
-          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; if [ -n "$udp_owner_pid" ]; then kill "$udp_owner_pid" 2>/dev/null || true; fi; sudo systemctl stop caskel.service || true' EXIT
+          docker_owner_name=
+          docker_owner_image_added=
+          # This test runs only on a disposable GitHub CI VM. Never remove a
+          # pre-existing Docker image or a user's unrelated Docker container.
+          trap 'if [ -n "$port_owner_pid" ]; then kill "$port_owner_pid" 2>/dev/null || true; fi; if [ -n "$udp_owner_pid" ]; then kill "$udp_owner_pid" 2>/dev/null || true; fi; if [ -n "$docker_owner_name" ]; then docker rm -f "$docker_owner_name" >/dev/null 2>&1 || true; fi; if [ -n "$docker_owner_image_added" ]; then docker image rm "$docker_owner_image_added" >/dev/null 2>&1 || true; fi; sudo systemctl stop caskel.service || true' EXIT
           sudo systemctl is-active --quiet caskel.service
           test -S /run/caskel/docker.sock
           BIN=/nix/var/nix/profiles/caskel/bin/caskel
@@ -392,6 +396,54 @@ jobs:
           kill "$udp_owner_pid"
           wait "$udp_owner_pid" || true
           udp_owner_pid=
+          # Real Docker/Caskel coexistence, not just an ordinary host
+          # listener: Docker owns a published loopback TCP port on this
+          # disposable runner. Caskel must not steal that port or disrupt
+          # Docker's existing container, then must recover after its release.
+          docker_images_before_external=$(docker image ls -q | sort)
+          if ! docker image inspect nginx:1.28-alpine >/dev/null 2>&1; then
+            # Clean up only an image tag introduced by this CI fixture.
+            docker_owner_image_added=nginx:1.28-alpine
+          fi
+          docker_owner_name=caskel-ci-docker-port-owner
+          docker run -d --name "$docker_owner_name" -p 127.0.0.1:18768:80 nginx:1.28-alpine
+          if ! check_caskel_port 18768; then
+            echo 'Disposable Docker owner did not serve HTTP on its published port' >&2
+            docker logs "$docker_owner_name" || true
+            exit 1
+          fi
+          if output=$(sudo "$BIN" run -d --name caskel-ci-docker-port-collision --network caskel-ci-dns \
+            -p 127.0.0.1:18768:80 alpine:3.21 sleep 1d 2>&1); then
+            sudo "$BIN" rm -f caskel-ci-docker-port-collision || true
+            echo 'Caskel accepted a TCP port occupied by the Docker engine' >&2
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -Eqi 'port is already allocated|address already in use'
+          docker inspect -f '{{.State.Running}}' "$docker_owner_name" | grep -qx true
+          check_caskel_port 18768
+          sudo "$BIN" rm -f caskel-ci-docker-port-collision >/dev/null 2>&1 || true
+          docker rm -f "$docker_owner_name"
+          docker_owner_name=
+          if [ -n "$docker_owner_image_added" ]; then
+            docker image rm "$docker_owner_image_added"
+            docker_owner_image_added=
+          fi
+          test "$docker_images_before_external" = "$(docker image ls -q | sort)"
+          # The same host port is now available to Caskel, which must serve
+          # actual HTTP, and then release the listener after removal.
+          sudo "$BIN" run -d --name caskel-ci-after-docker-release --network caskel-ci-dns \
+            -p 127.0.0.1:18768:80 nginx:1.28-alpine
+          if ! check_caskel_port 18768; then
+            echo 'Caskel could not publish after disposable Docker owner exited' >&2
+            sudo "$BIN" ps -a || true
+            sudo "$BIN" logs caskel-ci-after-docker-release || true
+            exit 1
+          fi
+          sudo "$BIN" rm -f caskel-ci-after-docker-release
+          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18768/ >/dev/null 2>&1; then
+            echo 'Caskel did not release the port after the Docker coexistence probe' >&2
+            exit 1
+          fi
           test "$docker_containers_before_ports" = "$(docker ps -aq | sort)"
           sudo "$BIN" rm -f caskel-ci-dns-peer
           # Container removal must withdraw its DNS name, while a surviving
