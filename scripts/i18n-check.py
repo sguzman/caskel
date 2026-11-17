@@ -24,6 +24,16 @@ NATIVE = sorted(os.path.join(UI, f) for f in os.listdir(UI) if f.endswith(".rs")
 # shown in the menus ("Linux VM: Running").
 NATIVE_STATES = ["Not running", "Running", "Stopped", "Asleep"]
 
+# Kiri Cloud is an external service, not a Caskel-branded endpoint. These
+# tokens are part of the privacy/recipient disclosure, not optional wordings.
+PROTECTED_BRANDING = {
+    "Kiri Cloud is operated by upstream, not Caskel. Uploading a diagnostic report requires CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1. Review the redacted report before sending.": ("Kiri Cloud", "Caskel", "CASKEL_ALLOW_LEGACY_KIRI_CLOUD=1"),
+    "Sent to upstream Kiri Cloud (not Caskel): {id}": ("Kiri Cloud", "{id}"),
+    "This report was sent to upstream Kiri Cloud.": ("Kiri Cloud",),
+    "Send to Kiri Cloud": ("Kiri Cloud",),
+}
+
+
 STR = r'"((?:[^"\\\n]|\\.)*)"'
 
 
@@ -95,6 +105,9 @@ def main():
             else:
                 if holes(v) != holes(k):
                     bad.append(f"{f}: {json.dumps(k, ensure_ascii=False)}: placeholders {holes(v)} should be {holes(k)}")
+                for token in PROTECTED_BRANDING.get(k, ()):
+                    if token not in v:
+                        bad.append(f"{f}: {json.dumps(k, ensure_ascii=False)}: required provider/consent token {token!r} was changed")
                 if tags(v) != tags(k):
                     bad.append(f"{f}: {json.dumps(k, ensure_ascii=False)}: tags {tags(v)} should be {tags(k)}")
                 if '"' in v and '"' not in k:
