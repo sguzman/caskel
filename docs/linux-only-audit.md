@@ -173,6 +173,8 @@ Reviewed the repository tree and the supported build entrypoints:
 This is a **technical build-input audit, not a legal release-by-release GPL
 provenance opinion**. No Caskel release bundles a guest kernel through the
 documented Nix package; other distribution channels or prior upstream
-releases may have independent obligations. Do not mark C4 entirely complete
-until historical source obligations and remaining stale release references
-have been explicitly resolved.
+releases may have independent obligations. Published upstream release-source metadata and its limitations are now
+documented in [the kernel provenance ledger](kernel-provenance.md), which
+separates upstream Kiri's source offer from Caskel's inherited tags and
+current Nix-only distribution. Do not mark C4 entirely complete until
+historical corresponding-source obligations are independently resolved.
