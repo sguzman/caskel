@@ -320,6 +320,11 @@ mod tests {
     fn refuses_implicit_writes_and_unsupported_apply() {
         assert!(run(&["docker".into()]).is_err());
         assert!(run(&["docker".into(), "--apply".into()]).is_err());
+        // A write request must be rejected even when combined with the
+        // otherwise valid read-only modes, before opening any Docker socket.
+        assert!(run(&["docker".into(), "--dry-run".into(), "--apply".into()]).is_err());
+        assert!(run(&["docker".into(), "--list".into(), "--apply".into()]).is_err());
+        assert!(run(&["docker".into(), "--dry-run".into(), "--socket".into(), "".into()]).is_err());
         assert!(run(&["docker".into(), "--list".into(), "--dry-run".into()]).is_err());
         assert!(run(&["docker".into(), "--list".into(), "--bad".into()]).is_err());
     }
