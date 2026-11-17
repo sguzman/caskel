@@ -11,6 +11,7 @@ use std::net::IpAddr;
 use serde_json::{json, Value};
 
 use super::{array, string, strings};
+use super::host_listeners::Listener;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PortLease {
@@ -135,6 +136,38 @@ fn source_target_port_overlap(source: &[Value], target: &[Value]) -> Vec<Value> 
     })).collect()
 }
 
+/// Snapshot of observed bound sockets in this CLI's network namespace.
+/// An observed port can belong to the Docker source itself, Caskel, or
+/// another process. Its presence is not proof that the port would remain
+/// occupied at cutover; its absence is never evidence that it is free.
+fn observed_source_port_occupancy(source: &[Value], observed: &[Listener]) -> Vec<Value> {
+    let leases = port_leases(source);
+    let mut matches = BTreeSet::new();
+    for lease in &leases {
+        for local in observed {
+            if lease.protocol != local.protocol || lease.port != local.port {
+                continue;
+            }
+            let equal = match (lease.address.parse::<IpAddr>(), local.address.parse::<IpAddr>()) {
+                (Ok(a), Ok(b)) => a.to_canonical() == b.to_canonical(),
+                _ => false,
+            };
+            if equal || wildcard(&lease.address) || wildcard(&local.address) {
+                matches.insert((lease.protocol.clone(), lease.port, lease.container.clone(),
+                    lease.address.clone(), local.address.clone()));
+            }
+        }
+    }
+    matches.into_iter().map(|(protocol, port, source, configured_ip, observed_ip)| json!({
+        "protocol": protocol,
+        "host_port": port,
+        "source_container": source,
+        "configured_host_ip": configured_ip,
+        "observed_host_ip": observed_ip,
+        "reason": "a local network namespace socket is currently bound here; ownership may be the Docker source itself, and this snapshot cannot approve a cutover"
+    })).collect()
+}
+
 /// Compare two CIDR ranges without assuming that network names are unique
 /// across engines. An invalid or unavailable subnet is never interpreted as
 /// proof of compatibility; all workloads remain blocked.
@@ -236,19 +269,24 @@ fn findings(container: &Value) -> Vec<&'static str> {
 }
 
 /// A migration **preview**, never an executable plan. Target Caskel state,
-/// live port occupancy, image compatibility and safe database consistency
-/// have not been checked; therefore every workload remains blocked.
+/// complete cross-namespace port occupancy, image compatibility and safe
+/// database consistency are not established; every workload stays blocked.
 pub(super) fn preview(inventory: &Value) -> io::Result<Value> {
-    preview_optional_target(inventory, None)
+    preview_optional_target(inventory, None, None)
 }
 
 /// Optional opt-in target inspection remains non-mutating and NEVER marks
 /// any workload ready, even if the target is empty or no overlaps are found.
 pub(super) fn preview_with_target(inventory: &Value, target: &Value) -> io::Result<Value> {
-    preview_optional_target(inventory, Some(target))
+    preview_optional_target(inventory, Some(target), None)
 }
 
-fn preview_optional_target(inventory: &Value, target: Option<&Value>) -> io::Result<Value> {
+/// Explicitly opted-in host socket observation never approves a workload.
+pub(super) fn preview_with_local_listeners(inventory: &Value, target: Option<&Value>, listeners: &[Listener]) -> io::Result<Value> {
+    preview_optional_target(inventory, target, Some(listeners))
+}
+
+fn preview_optional_target(inventory: &Value, target: Option<&Value>, listeners: Option<&[Listener]>) -> io::Result<Value> {
     let containers = array(&inventory["containers"], "inventory containers")?;
     let target_containers = match target {
         Some(v) => array(&v["containers"], "target containers")?.as_slice(),
@@ -283,6 +321,8 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>) -> io::Res
         "source_socket": string(inventory, "source_socket"),
         "docker_version": string(inventory, "docker_version"),
         "target_caskel_inspected": target.is_some(),
+        "local_host_listeners_inspected": listeners.is_some(),
+        "observed_source_port_occupancy": listeners.map(|items| observed_source_port_occupancy(containers, items)).unwrap_or_default(),
         "target_socket": target.map(|v| string(v, "target_socket")),
         "target_container_count": target.map(|_| target_containers.len()),
         "potential_source_target_port_overlap": source_target_port_overlap(containers, target_containers),
@@ -295,7 +335,7 @@ fn preview_optional_target(inventory: &Value, target: Option<&Value>) -> io::Res
         "workloads": workloads,
         "unverified_requirements": [
             "target Caskel image/platform support, capabilities, DNS, gateways and network/IPAM compatibility not fully checked; missing or malformed subnet data cannot establish safety",
-            "live host port occupancy (including non-container processes) not checked; source ports must be released deliberately",
+            "the optional /proc host listener snapshot reads only this CLI's network namespace; ownership, other namespaces and future availability remain unverified, and source ports must be released deliberately",
             "target storage ownership, permissions and available space not checked",
             "database and other active write-heavy services require application-consistent backup and tested restore",
             "Compose secrets, dependency order and external resources need original Compose/configuration review",
@@ -449,6 +489,25 @@ mod tests {
         assert!(report["workloads"].as_array().unwrap().iter()
             .all(|c| c["status"] == "blocked_pending_manual_validation"));
         assert!(preview(&source).unwrap()["potential_source_target_subnet_overlap"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn opt_in_host_listener_snapshot_reports_observations_not_cutover_readiness() {
+        let source = fixture();
+        let listening = vec![
+            Listener { protocol: "tcp", address: "127.0.0.1".into(), port: 15432 },
+            Listener { protocol: "udp", address: "127.0.0.1".into(), port: 15432 },
+            Listener { protocol: "tcp", address: "127.0.0.1".into(), port: 19000 },
+        ];
+        let report = preview_with_local_listeners(&source, None, &listening).unwrap();
+        assert!(report["local_host_listeners_inspected"] == true);
+        assert_eq!(report["observed_source_port_occupancy"].as_array().unwrap().len(), 2);
+        assert_eq!(report["observed_source_port_occupancy"][0]["host_port"], 15432);
+        assert_eq!(report["ready_to_apply"], false);
+        assert!(report["workloads"].as_array().unwrap().iter()
+            .all(|c| c["status"] == "blocked_pending_manual_validation"));
+        assert!(preview(&source).unwrap()["observed_source_port_occupancy"].as_array().unwrap().is_empty());
+        assert_eq!(preview(&source).unwrap()["local_host_listeners_inspected"], false);
     }
 
     #[test]

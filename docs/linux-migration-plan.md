@@ -67,12 +67,18 @@ port overlap, including stopped containers with configured bindings.
 certificate.** All workloads report `blocked_pending_manual_validation`.
 By default the target Caskel engine is **not** inspected. When explicitly
 requested with `--target-socket`, only its container port configuration and
-network subnet metadata are compared with Docker. This is not a live
-host-routing or socket-occupancy check. Image/platform capability,
-gateway/DNS compatibility, missing or malformed IPAM data,
-application-consistent data and rollback readiness have **not** been verified. The JSON lists
-proposed manual steps but cannot be applied; no `--apply` flag exists.
-Treat inventory and preview outputs as private infrastructure metadata.
+network subnet metadata are compared with Docker. The optional
+`--inspect-host-listeners` reads a point-in-time TCP/UDP socket snapshot from
+the CLI's **own Linux network namespace**, without binding a port or changing
+any process. Only sockets potentially overlapping configured source Docker
+ports are reported; the tool cannot determine which process owns them.
+Running Docker ports can appear as observations of the source itself.
+An empty report does **not** prove ports are free: other namespaces, process
+races, future cutovers and routing are outside this snapshot. Image/platform
+capability, gateway/DNS compatibility, missing or malformed IPAM data,
+application-consistent data and rollback readiness have **not** been verified.
+The JSON lists proposed manual steps but cannot be applied; no `--apply`
+flag exists. Treat inventory and preview outputs as private infrastructure metadata.
 
 Optional target-side read-only comparison (PRs #48–#49):
 
@@ -88,6 +94,18 @@ checks; those checks are on disposable GitHub runners, not a production host.
 Network-name matches do not imply safe equivalence. Invalid/unavailable
 subnets cannot be treated as compatible. Never publish the JSON report.
 
+Optional local socket observation (read-only, Linux only):
+
+```fish
+caskel migrate docker --dry-run --inspect-host-listeners --json
+```
+
+The JSON marks `local_host_listeners_inspected: true` and provides
+`observed_source_port_occupancy` findings, with no owner/PID data or readiness
+approval. The same flag may be combined with `--target-socket`. It is not
+available for `--list`. This does not inspect a remote Docker daemon's host
+network namespace if the CLI is running elsewhere.
+
 **Verification on merged PR #23:** all four CI workflows passed, including
 the disposable Linux host's real-Docker read-only inventory and JSON
 preview checks. The suite rejects `--apply` and confirms the original Docker
@@ -96,7 +114,7 @@ of behavior against the user's production Docker host.
 
 Still planned: validate a representative source host without mutation;
 continue isolated Caskel destination checks for
-network gateways, DNS, actual host port occupancy, storage
+network gateways, DNS, complete cross-namespace port occupancy, storage
 ownership/space, image/platform support and restoration
 readiness; and only later design a separately authorized, reversible
 per-service cutover mechanism. No source or target is modified by a preview.
