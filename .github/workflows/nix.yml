@@ -184,6 +184,16 @@ jobs:
             sudo "$BIN" ps -a || true
             sudo "$BIN" inspect -f '{{.State.Status}} {{.State.Error}} {{json .HostConfig.PortBindings}} {{json .NetworkSettings.Ports}}' caskel-ci-port || true
             sudo "$BIN" logs caskel-ci-port || true
+            # Distinguish host-to-bridge route failures from TCP relay logic.
+            # The image and names are disposable CI fixtures only.
+            sudo "$BIN" run --rm --network caskel-ci-dns alpine:3.21 \
+              sh -c 'wget -T 3 -qO- http://caskel-ci-port/ | grep -F "Welcome to nginx!"' || true
+            bridge_ip=$(sudo "$BIN" inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' caskel-ci-port) || true
+            printf 'target bridge IP: %s\n' "$bridge_ip"
+            if [ -n "$bridge_ip" ]; then
+              ip route get "$bridge_ip" || true
+              curl -v --connect-timeout 2 --max-time 4 "http://$bridge_ip/" || true
+            fi
             sudo ss -ltnp | grep -E '(:18765|State)' || true
             sudo journalctl -u caskel.service -n 90 --no-pager || true
             exit 1
