@@ -236,17 +236,29 @@ fn ensure_caskel_target(version: &Value) -> io::Result<()> {
 fn network_summaries(networks: &Value, subject: &str) -> io::Result<Vec<Value>> {
     let mut result = Vec::new();
     for network in array(networks, subject)? {
-        let mut subnets = network["IPAM"]["Config"].as_array().into_iter().flatten()
-            .filter_map(|entry| entry["Subnet"].as_str().map(str::to_owned))
-            .collect::<Vec<_>>();
+        let mut ipam = network["IPAM"]["Config"].as_array().into_iter().flatten()
+            .filter_map(|entry| {
+                let subnet = entry["Subnet"].as_str()?.trim();
+                if subnet.is_empty() { return None; }
+                // Gateway values are network topology metadata. Never copy
+                // IPAM.Options, labels, DNS settings or arbitrary values.
+                Some((subnet.to_owned(), entry["Gateway"].as_str().unwrap_or("").to_owned()))
+            }).collect::<Vec<_>>();
+        ipam.sort_unstable();
+        ipam.dedup();
+        let mut subnets = ipam.iter().map(|(subnet, _)| subnet.clone()).collect::<Vec<_>>();
         subnets.sort_unstable();
         subnets.dedup();
+        let ipam_gateways = ipam.into_iter().map(|(subnet, gateway)| json!({
+            "subnet": subnet, "gateway": gateway
+        })).collect::<Vec<_>>();
         result.push(json!({
             "name": string(network, "Name"),
             "id": string(network, "Id"),
             "driver": string(network, "Driver"),
             "internal": network["Internal"],
-            "subnets": subnets
+            "subnets": subnets,
+            "ipam_gateways": ipam_gateways
         }));
     }
     result.sort_unstable_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
@@ -583,9 +595,15 @@ mod tests {
         }]);
         let result = network_summaries(&input, "test networks").unwrap();
         assert_eq!(result[0]["subnets"], json!(["10.19.0.0/16", "fd20::/64"]));
+        assert_eq!(result[0]["ipam_gateways"], json!([
+            {"subnet": "10.19.0.0/16", "gateway": ""},
+            {"subnet": "10.19.0.0/16", "gateway": "10.19.0.1"},
+            {"subnet": "fd20::/64", "gateway": "fd20::1"}
+        ]));
+        assert_eq!(network_summaries(&input, "test networks").unwrap(), result);
         let sanitized = serde_json::to_string(&result).unwrap();
         assert!(!sanitized.contains("PRIVATE"));
-        assert!(!sanitized.contains("Gateway"));
+        assert!(!sanitized.contains("Options"));
         assert!(network_summaries(&json!({"not": "an array"}), "bad networks").is_err());
     }
 
