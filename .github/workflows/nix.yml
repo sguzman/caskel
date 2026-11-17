@@ -174,12 +174,24 @@ jobs:
           # a Caskel bridge container. This must neither affect Docker's
           # own containers nor require swapping the Docker default context.
           docker_containers_before_ports=$(docker ps -aq | sort)
+          # A newly started HTTP server may not be listening on its first
+          # millisecond. Retry *all* failures (including TCP reset), but only
+          # accept an actual HTTP 200 page with Nginx's expected content.
+          check_caskel_port() {
+            for attempt in $(seq 1 12); do
+              if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18765/ 2>/dev/null \
+                | grep -Fq 'Welcome to nginx!'; then
+                return 0
+              fi
+              sleep 1
+            done
+            return 1
+          }
           # Alpine's base BusyBox lacks the httpd applet. Use the actual
           # Nginx HTTP server image rather than a nonexistent test binary.
           sudo "$BIN" run -d --name caskel-ci-port --network caskel-ci-dns \
             -p 127.0.0.1:18765:80 nginx:1.28-alpine
-          if ! (curl -fsS --retry 8 --retry-connrefused --retry-delay 1 --max-time 3 \
-            http://127.0.0.1:18765/ | grep -Fq 'Welcome to nginx!'); then
+          if ! check_caskel_port; then
             echo 'Caskel published TCP port unavailable: diagnostic snapshot (CI only)' >&2
             sudo "$BIN" ps -a || true
             sudo "$BIN" inspect -f '{{.State.Status}} {{.State.Error}} {{json .HostConfig.PortBindings}} {{json .NetworkSettings.Ports}}' caskel-ci-port || true
@@ -205,7 +217,7 @@ jobs:
             echo 'Caskel allowed duplicate published TCP host port' >&2
             exit 1
           fi
-          curl -fsS --max-time 3 http://127.0.0.1:18765/ | grep -Fq 'Welcome to nginx!'
+          check_caskel_port
           # A daemon restart cannot silently claim Docker's resources.
           # Explicitly restart this test container if it was stopped.
           sudo systemctl restart caskel.service
@@ -213,8 +225,7 @@ jobs:
           if [ "$(sudo "$BIN" inspect -f '{{.State.Running}}' caskel-ci-port)" != true ]; then
             sudo "$BIN" start caskel-ci-port
           fi
-          curl -fsS --retry 8 --retry-connrefused --retry-delay 1 --max-time 3 \
-            http://127.0.0.1:18765/ | grep -Fq 'Welcome to nginx!'
+          check_caskel_port
           sudo "$BIN" rm -f caskel-ci-port
           if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:18765/ >/dev/null 2>&1; then
             echo 'Caskel did not release published port after container removal' >&2
