@@ -6387,6 +6387,9 @@ function pulledToast(e) {
    crash's report; an error toast's Details shows its action's log lines. */
 const DG_PART = { ui: "Window", daemon: "Engine", cli: "CLI" };
 const DG_WHO = { ui: "The window", daemon: "The engine", cli: "A kiri command" };
+// The old localized keys say "kiri" in lowercase, unlike the proper-name
+// substitution. Change only Caskel's command labels, never user-provided data.
+const brandedCliLabel = (text) => LINUX ? String(text).replace(/\bkiri\b/gi, "Caskel") : text;
 /* i18n */ void [tr("Window"), tr("Engine"), tr("CLI"), tr("The window"), tr("The engine"), tr("A kiri command")];
 const dg = { part: "", level: "", find: "", op: "", follow: true, lines: null, shown: "", crashes: null, open: new Set(), sending: new Set(), sent: "", copyOp: "" };
 const dgIcon = (name) => `<svg viewBox="0 0 256 256" aria-hidden="true"><path d="${PH[name]}"/></svg>`;
@@ -6544,7 +6547,7 @@ function drawReport() {
   scrim.innerHTML = `<div class="dialog rp-dialog" role="dialog" aria-modal="true" aria-labelledby="rp-t">
     <h3 id="rp-t">${send_ ? tr("Send a report to Kiri") : tr("Create a diagnostics report")}</h3>
     <p>${send_ ? tr("We get the file below, redacted, and you get an ID to quote when you write to us. If you're signed in to Kiri Cloud, it says it's from you, so we can reply.") : tr("One text file, redacted, saved to your Desktop and shown in Finder. Read it before you share it.")}</p>
-    <div class="rp-list">${item(tr("Kiri's logs"), tr("The last 300 lines from the window, the engine and kiri commands, and the engine's own output"))}
+    <div class="rp-list">${item(tr("Kiri's logs"), brandedCliLabel(tr("The last 300 lines from the window, the engine and kiri commands, and the engine's own output")))}
       ${item(tr("Crash reports"), tr("The 5 newest, and macOS's own crash reports for Kiri from the last 30 days"))}
       ${item(tr("Kiri and this Mac"), tr("Versions, macOS, whether the engine runs, how many containers and images"))}
       <label class="rp-item opt"><input type="checkbox" data-rpopt${rp.containers ? " checked" : ""}${rp.state ? " disabled" : ""}><span class="t">${tr("Container list")}</span><span class="d">${tr("Names, images and status. Not their files, logs or environment.")}</span></label></div>
@@ -6560,8 +6563,8 @@ function drawReport() {
 function crashCard() {
   const c = ui.crash;
   if (!c || c.hidden) return "";
-  const who = DG_WHO[c.part] ? tr(DG_WHO[c.part]) : tr("Part of Kiri"), when = dgWhen(c.time, true);
-  const title = c.part === "cli" ? tr("A kiri command crashed") : tr("Kiri quit unexpectedly last time");
+  const who = DG_WHO[c.part] ? brandedCliLabel(tr(DG_WHO[c.part])) : tr("Part of Kiri"), when = dgWhen(c.time, true);
+  const title = c.part === "cli" ? brandedCliLabel(tr("A kiri command crashed")) : tr("Kiri quit unexpectedly last time");
   const more = c.count > 1 ? tr(" That's {count} crashes since Kiri last opened.", { count: c.count }) : "";
   const head = (ic, h, sub) => `<div class="updcard" role="dialog" aria-label="${esc(h)}">
     <div class="head"><div class="ic ${ic}">${dgIcon(ic === "ok" ? "checkcircle" : "warning")}</div><div class="txt"><h4>${esc(h)}</h4><div class="sub">${sub}</div></div>
