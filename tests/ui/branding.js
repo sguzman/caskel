@@ -60,6 +60,7 @@ t("Linux save report description is local and never advertises Finder", () => {
     const text = document.querySelector("#rp")?.textContent || "";
     if (description === key || !text.includes(description)) throw new Error("save text was not localized");
     if (text.includes("Finder")) throw new Error("Mac file manager incorrectly advertised");
+    if (!text.includes(tr("Save")) || text.includes(tr("Save to Desktop"))) throw new Error("Linux save action promises a Desktop location");
   } finally {
     document.querySelector("#rp [data-close]")?.click();
   }
