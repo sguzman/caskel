@@ -434,7 +434,7 @@ fn parse_ipam6(c: &serde_json::Value, subnet: &str) -> Result<Ipam6, String> {
     let (net, prefix) = parse_cidr6(subnet, "subnet")?;
     // A network needs room for the gateway and at least one container.
     if !(1..=126).contains(&prefix) {
-        return Err(format!("invalid subnet {subnet}: Kiri supports IPv6 prefixes from /1 to /126"));
+        return Err(format!("invalid subnet {subnet}: Caskel supports IPv6 prefixes from /1 to /126"));
     }
     let inside = |ip: [u8; 16]| in_subnet6(ip, net, prefix);
     let ip_range = match field("IPRange") {
@@ -477,7 +477,7 @@ pub fn parse_ipam(v: &serde_json::Value) -> Result<Option<Ipam>, String> {
 pub fn parse_ipam_both(v: &serde_json::Value) -> Result<(Option<Ipam>, Option<Ipam6>), String> {
     match v["Driver"].as_str().unwrap_or("") {
         "" | "default" => {}
-        d => return Err(format!("Kiri supports only the default IPAM driver, not {d}")),
+        d => return Err(format!("Caskel supports only the default IPAM driver, not {d}")),
     }
     let configs = v["Config"].as_array().map(Vec::as_slice).unwrap_or(&[]);
     let mut out: Option<Ipam> = None;
@@ -487,7 +487,7 @@ pub fn parse_ipam_both(v: &serde_json::Value) -> Result<(Option<Ipam>, Option<Ip
         let subnet = field("Subnet");
         if subnet.contains(':') {
             if out6.is_some() {
-                return Err("Kiri supports one IPv6 subnet per network".into());
+                return Err("Caskel supports one IPv6 subnet per network".into());
             }
             out6 = Some(parse_ipam6(c, &subnet)?);
             continue;
@@ -499,11 +499,11 @@ pub fn parse_ipam_both(v: &serde_json::Value) -> Result<(Option<Ipam>, Option<Ip
             return Err("invalid network config: an IP range or gateway needs a subnet".into());
         }
         if out.is_some() {
-            return Err("Kiri supports one IPv4 subnet per network".into());
+            return Err("Caskel supports one IPv4 subnet per network".into());
         }
         let (net, prefix) = parse_cidr(&subnet, "subnet")?;
         if prefix > 30 || prefix < 8 {
-            return Err(format!("invalid subnet {subnet}: Kiri supports prefixes from /8 to /30"));
+            return Err(format!("invalid subnet {subnet}: Caskel supports prefixes from /8 to /30"));
         }
         let inside = |ip: [u8; 4]| in_subnet(ip, net, prefix);
         let ip_range = match field("IPRange") {
