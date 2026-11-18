@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use std::io::{self, Read, Write};
 use std::os::unix::fs::FileTypeExt;
 use std::os::unix::net::UnixStream;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -247,7 +248,10 @@ fn network_summaries(networks: &Value, subject: &str) -> io::Result<Vec<Value>> 
                 if subnet.is_empty() { return None; }
                 // Gateway values are network topology metadata. Never copy
                 // IPAM.Options, labels, DNS settings or arbitrary values.
-                Some((subnet.to_owned(), entry["Gateway"].as_str().unwrap_or("").to_owned()))
+                let gateway = entry["Gateway"].as_str()
+                    .and_then(|raw| raw.parse::<IpAddr>().ok())
+                    .map_or_else(String::new, |addr| addr.to_string());
+                Some((subnet.to_owned(), gateway))
             }).collect::<Vec<_>>();
         ipam.sort_unstable();
         ipam.dedup();
@@ -614,7 +618,7 @@ mod tests {
             "IPAM": {"Config": [
                 {"Subnet": "fd20::/64", "Gateway": "fd20::1"},
                 {"Subnet": "10.19.0.0/16", "Gateway": "10.19.0.1"},
-                {"Subnet": "10.19.0.0/16"}
+                {"Subnet": "10.19.0.0/16", "Gateway": "SENSITIVE_INVALID_GATEWAY"}
             ], "Options": {"password": "PRIVATE"}},
             "Labels": {"token": "PRIVATE"},
             "Options": {"secret": "PRIVATE"}
@@ -630,6 +634,7 @@ mod tests {
         let sanitized = serde_json::to_string(&result).unwrap();
         assert!(!sanitized.contains("PRIVATE"));
         assert!(!sanitized.contains("Options"));
+        assert!(!sanitized.contains("SENSITIVE_INVALID_GATEWAY"));
         assert!(network_summaries(&json!({"not": "an array"}), "bad networks").is_err());
     }
 
