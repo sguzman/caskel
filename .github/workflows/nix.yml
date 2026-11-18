@@ -498,6 +498,7 @@ jobs:
           assert plan["potential_source_target_port_overlap"] == []
           assert plan["potential_source_target_subnet_overlap"] == []
           assert plan["potential_source_target_gateway_mismatch"] == []
+          assert plan["potential_source_target_network_mode_difference"] == []
           PY
           # Target inspection is explicitly opted in, GET-only and still
           # cannot approve a cutover. The target must be the isolated Caskel
@@ -515,6 +516,7 @@ jobs:
           assert isinstance(plan["potential_source_target_port_overlap"], list)
           assert isinstance(plan["potential_source_target_subnet_overlap"], list)
           assert isinstance(plan["potential_source_target_gateway_mismatch"], list)
+          assert isinstance(plan["potential_source_target_network_mode_difference"], list)
           assert isinstance(plan["target_network_count"], int)
           PY
           # Optional host observation: only reads /proc/net in the CLI's
