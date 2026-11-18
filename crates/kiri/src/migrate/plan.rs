@@ -260,6 +260,51 @@ fn source_target_gateway_mismatch(source: &[Value], target: &[Value]) -> Vec<Val
     })).collect()
 }
 
+/// Compare known network driver and internal-isolation settings *only* on
+/// overlapping source/target IPAM ranges. A matching value or an absent
+/// setting is never treated as evidence of migration compatibility.
+fn source_target_network_mode_difference(source: &[Value], target: &[Value]) -> Vec<Value> {
+    let mut differences = BTreeSet::new();
+    for a in source {
+        for b in target {
+            let a_driver = a["driver"].as_str().unwrap_or("");
+            let b_driver = b["driver"].as_str().unwrap_or("");
+            let a_internal = a["internal"].as_bool();
+            let b_internal = b["internal"].as_bool();
+            let driver_diff = !a_driver.is_empty() && !b_driver.is_empty() && a_driver != b_driver;
+            let internal_diff = matches!((a_internal, b_internal), (Some(x), Some(y)) if x != y);
+            if !driver_diff && !internal_diff { continue; }
+            for source_subnet in strings(&a["subnets"]) {
+                for target_subnet in strings(&b["subnets"]) {
+                    if !cidr_overlap(&source_subnet, &target_subnet) { continue; }
+                    differences.insert((
+                        string(a, "name"), source_subnet.clone(), a_driver.to_owned(), a_internal,
+                        string(b, "name"), target_subnet, b_driver.to_owned(), b_internal,
+                        driver_diff, internal_diff,
+                    ));
+                }
+            }
+        }
+    }
+    differences.into_iter().map(|(
+        source_network, source_subnet, source_driver, source_internal,
+        target_network, target_subnet, target_driver, target_internal,
+        driver_difference, internal_difference,
+    )| json!({
+        "source_network": source_network,
+        "source_subnet": source_subnet,
+        "source_driver": source_driver,
+        "source_internal": source_internal,
+        "target_network": target_network,
+        "target_subnet": target_subnet,
+        "target_driver": target_driver,
+        "target_internal": target_internal,
+        "driver_difference": driver_difference,
+        "internal_difference": internal_difference,
+        "reason": "overlapping Docker and Caskel IPAM ranges use different network drivers or internal isolation; migration routing and reachability require manual review"
+    })).collect()
+}
+
 fn findings(container: &Value) -> Vec<&'static str> {
     let mut notes = BTreeSet::new();
     notes.insert("image_must_be_transferred_or_pulled_separately");
@@ -388,6 +433,7 @@ fn preview_optional_target(
         "potential_source_target_port_overlap": source_target_port_overlap(containers, target_containers),
         "potential_source_target_subnet_overlap": source_target_subnet_overlap(source_networks, target_networks),
         "potential_source_target_gateway_mismatch": source_target_gateway_mismatch(source_networks, target_networks),
+        "potential_source_target_network_mode_difference": source_target_network_mode_difference(source_networks, target_networks),
         "target_network_count": target.map(|_| target_networks.len()),
         "ready_to_apply": false,
         "workload_count": workloads.len(),
@@ -395,7 +441,7 @@ fn preview_optional_target(
         "potential_source_port_reuse": source_port_reuse(containers),
         "workloads": workloads,
         "unverified_requirements": [
-            "target Caskel image/platform support, capabilities, DNS and network/IPAM compatibility not fully checked; missing or malformed subnet/gateway data and apparent gateway matches cannot establish safe routing",
+            "target Caskel image/platform support, capabilities, DNS and network/IPAM compatibility not fully checked; matching or missing driver, internal-isolation and subnet/gateway data cannot establish safe routing",
             "the optional /proc host listener snapshot reads only this CLI's network namespace; ownership, other namespaces and future availability remain unverified, and source ports must be released deliberately",
             "optional host mount metadata describes Docker source paths only; Docker's mount namespace may differ and destination storage permissions, space, and ownership remain unverified",
             "database and other active write-heavy services require application-consistent backup and tested restore",
@@ -618,6 +664,47 @@ mod tests {
         let no_difference = preview_with_target(&source, &unchanged_gateway).unwrap();
         assert_eq!(no_difference["potential_source_target_gateway_mismatch"], json!([]));
         assert_eq!(no_difference["ready_to_apply"], false);
+    }
+
+    #[test]
+    fn overlapping_network_driver_or_internal_differences_remain_blocked() {
+        let mut source = fixture();
+        source["networks"] = json!([{
+            "name": "source-bridge", "driver": "bridge", "internal": false,
+            "subnets": ["10.54.0.0/16"]
+        }]);
+        let mut target = json!({
+            "target_socket": "/run/caskel/docker.sock", "containers": [],
+            "networks": [{
+                "name": "target-macvlan", "driver": "macvlan", "internal": true,
+                "subnets": ["10.54.2.0/24"]
+            }]
+        });
+        let report = preview_with_target(&source, &target).unwrap();
+        assert_eq!(report, preview_with_target(&source, &target).unwrap());
+        let differences = report["potential_source_target_network_mode_difference"].as_array().unwrap();
+        assert_eq!(differences.len(), 1);
+        assert_eq!(differences[0]["driver_difference"], true);
+        assert_eq!(differences[0]["internal_difference"], true);
+        assert_eq!(report["ready_to_apply"], false);
+
+        target["networks"][0]["driver"] = json!("bridge");
+        let only_internal = preview_with_target(&source, &target).unwrap();
+        assert_eq!(only_internal["potential_source_target_network_mode_difference"][0]["driver_difference"], false);
+        assert_eq!(only_internal["potential_source_target_network_mode_difference"][0]["internal_difference"], true);
+        target["networks"][0]["internal"] = json!(false);
+        let matching = preview_with_target(&source, &target).unwrap();
+        assert_eq!(matching["potential_source_target_network_mode_difference"], json!([]));
+        assert_eq!(matching["ready_to_apply"], false);
+
+        target["networks"][0]["driver"] = Value::Null;
+        target["networks"][0]["internal"] = Value::Null;
+        assert_eq!(preview_with_target(&source, &target).unwrap()["ready_to_apply"], false);
+        target["networks"][0]["driver"] = json!("macvlan");
+        target["networks"][0]["internal"] = json!(true);
+        target["networks"][0]["subnets"] = json!(["10.55.0.0/16"]);
+        assert_eq!(preview_with_target(&source, &target).unwrap()["potential_source_target_network_mode_difference"], json!([]));
+        assert_eq!(preview_with_target(&source, &target).unwrap()["ready_to_apply"], false);
     }
 
     #[test]
