@@ -111,6 +111,25 @@ approval. The same flag may be combined with `--target-socket`. It is not
 available for `--list`. This does not inspect a remote Docker daemon's host
 network namespace if the CLI is running elsewhere.
 
+Optional source storage path metadata (read-only, Linux only):
+
+```fish
+caskel migrate docker --dry-run --inspect-host-storage --json
+```
+
+This explicitly reads only `symlink_metadata` and filesystem-capacity metadata
+for source bind/volume paths already present in Docker's GET-only inventory,
+including named volume mountpoints. It reports `local_host_storage_inspected`
+and `observed_source_storage` with path status, type, numeric uid/gid, mode,
+and available bytes when readable. It does **not** open files, read contents,
+scan directories, follow a final symlink, or mount anything. The invoking
+CLI's mount namespace can differ from Docker's; absent paths, uid/gid and
+available bytes are only local observations, not validation of the Caskel
+destination. No backup integrity, permissions compatibility, application
+consistency, available target capacity or restore readiness is established.
+Every workload stays blocked; the flag cannot be used with `--list`. It can
+be combined with `--target-socket` and `--inspect-host-listeners`.
+
 **Verification on merged PR #23:** all four CI workflows passed, including
 the disposable Linux host's real-Docker read-only inventory and JSON
 preview checks. The suite rejects `--apply` and confirms the original Docker

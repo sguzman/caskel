@@ -82,7 +82,12 @@ Without this explicit flag, the target is not inspected. An independent
 snapshot of TCP/UDP sockets matching configured Docker source ports.
 It reads only the CLI's own network namespace; it cannot identify port owners,
 inspect other namespaces, establish future availability, or authorize a cutover.
-Both flags are optional and can be combined with `--dry-run --json`.
+The independent `--inspect-host-storage` opt-in reads only metadata of
+Docker source bind/volume mount paths (existence, type, uid/gid, mode, and
+available filesystem bytes), without reading contents or following the final
+symlink. It observes the CLI's own mount namespace, not necessarily Docker's
+namespace, and **does not validate destination storage, backup or restore**.
+All three opt-in flags can be combined with `--dry-run --json`.
 Treat the JSON output as private infrastructure metadata. Caskel does not move or stop existing Docker services.
 
 ## Origins and license
