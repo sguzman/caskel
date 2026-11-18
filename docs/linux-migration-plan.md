@@ -100,6 +100,11 @@ If overlapping Docker and Caskel subnets specify *different valid gateways*,
 the preview flags a `potential_source_target_gateway_mismatch`. Missing,
 invalid or equal gateways are **not** evidence of route compatibility; the
 real routing table, network ownership and migration isolation remain unverified.
+When overlapping source and target ranges have explicitly different network
+drivers or `internal` isolation flags, the preview additionally reports
+`potential_source_target_network_mode_difference`. Matching or absent flags
+never establish compatibility. IPAM gateway values are parsed as IP addresses
+before inclusion; malformed raw gateway strings are not copied into reports.
 PRs #48 and #49 both passed Linux Nix/runtime, UI, CodeQL and performance
 checks; those checks are on disposable GitHub runners, not a production host.
 Network-name matches do not imply safe equivalence. Invalid/unavailable
