@@ -219,6 +219,47 @@ fn source_target_subnet_overlap(source: &[Value], target: &[Value]) -> Vec<Value
     })).collect()
 }
 
+/// Potential gateway differences on overlapping source/target IPAM ranges.
+/// A gateway match is NOT proof of routing compatibility. Missing or invalid
+/// gateway entries cannot establish a safe configuration, either.
+fn source_target_gateway_mismatch(source: &[Value], target: &[Value]) -> Vec<Value> {
+    let mut findings = BTreeSet::new();
+    for a in source {
+        for sa in a["ipam_gateways"].as_array().into_iter().flatten() {
+            let Some(source_subnet) = sa["subnet"].as_str() else { continue };
+            let Some(source_gateway) = sa["gateway"].as_str().and_then(|s| s.parse::<IpAddr>().ok()) else {
+                continue;
+            };
+            for b in target {
+                for tb in b["ipam_gateways"].as_array().into_iter().flatten() {
+                    let Some(target_subnet) = tb["subnet"].as_str() else { continue };
+                    let Some(target_gateway) = tb["gateway"].as_str().and_then(|s| s.parse::<IpAddr>().ok()) else {
+                        continue;
+                    };
+                    if cidr_overlap(source_subnet, target_subnet)
+                        && source_gateway.is_ipv4() == target_gateway.is_ipv4()
+                        && source_gateway != target_gateway
+                    {
+                        findings.insert((
+                            string(a, "name"), source_subnet.to_owned(), source_gateway.to_string(),
+                            string(b, "name"), target_subnet.to_owned(), target_gateway.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    findings.into_iter().map(|(source_network, source_subnet, source_gateway, target_network, target_subnet, target_gateway)| json!({
+        "source_network": source_network,
+        "source_subnet": source_subnet,
+        "source_gateway": source_gateway,
+        "target_network": target_network,
+        "target_subnet": target_subnet,
+        "target_gateway": target_gateway,
+        "reason": "overlapping source and Caskel IPAM ranges specify different gateways; routing, DNS, and real host route ownership require review"
+    })).collect()
+}
+
 fn findings(container: &Value) -> Vec<&'static str> {
     let mut notes = BTreeSet::new();
     notes.insert("image_must_be_transferred_or_pulled_separately");
@@ -346,6 +387,7 @@ fn preview_optional_target(
         "target_container_count": target.map(|_| target_containers.len()),
         "potential_source_target_port_overlap": source_target_port_overlap(containers, target_containers),
         "potential_source_target_subnet_overlap": source_target_subnet_overlap(source_networks, target_networks),
+        "potential_source_target_gateway_mismatch": source_target_gateway_mismatch(source_networks, target_networks),
         "target_network_count": target.map(|_| target_networks.len()),
         "ready_to_apply": false,
         "workload_count": workloads.len(),
@@ -353,7 +395,7 @@ fn preview_optional_target(
         "potential_source_port_reuse": source_port_reuse(containers),
         "workloads": workloads,
         "unverified_requirements": [
-            "target Caskel image/platform support, capabilities, DNS, gateways and network/IPAM compatibility not fully checked; missing or malformed subnet data cannot establish safety",
+            "target Caskel image/platform support, capabilities, DNS and network/IPAM compatibility not fully checked; missing or malformed subnet/gateway data and apparent gateway matches cannot establish safe routing",
             "the optional /proc host listener snapshot reads only this CLI's network namespace; ownership, other namespaces and future availability remain unverified, and source ports must be released deliberately",
             "optional host mount metadata describes Docker source paths only; Docker's mount namespace may differ and destination storage permissions, space, and ownership remain unverified",
             "database and other active write-heavy services require application-consistent backup and tested restore",
@@ -534,6 +576,48 @@ mod tests {
         assert!(report["workloads"].as_array().unwrap().iter()
             .all(|c| c["status"] == "blocked_pending_manual_validation"));
         assert!(preview(&source).unwrap()["potential_source_target_subnet_overlap"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn opt_in_ipam_gateway_differences_are_deterministic_blocked_warnings() {
+        let mut source = fixture();
+        source["networks"] = json!([{
+            "name": "docker-source",
+            "subnets": ["10.41.0.0/16", "fd14::/64"],
+            "ipam_gateways": [
+                {"subnet": "10.41.0.0/16", "gateway": "10.41.0.1"},
+                {"subnet": "fd14::/64", "gateway": "fd14::1"}
+            ]
+        }]);
+        let target = json!({
+            "target_socket": "/run/caskel/docker.sock",
+            "containers": [],
+            "networks": [{
+                "name": "caskel-target",
+                "subnets": ["10.41.9.0/24", "fd14::/64"],
+                "ipam_gateways": [
+                    {"subnet": "10.41.9.0/24", "gateway": "10.41.9.1"},
+                    {"subnet": "fd14::/64", "gateway": "fd14::2"}
+                ]
+            }]
+        });
+        let report = preview_with_target(&source, &target).unwrap();
+        assert_eq!(report, preview_with_target(&source, &target).unwrap());
+        assert_eq!(report["potential_source_target_gateway_mismatch"].as_array().unwrap().len(), 2);
+        assert_eq!(report["potential_source_target_subnet_overlap"].as_array().unwrap().len(), 2);
+        assert_eq!(report["ready_to_apply"], false);
+        assert!(report["workloads"].as_array().unwrap().iter().all(|w|
+            w["status"] == "blocked_pending_manual_validation"));
+        assert!(preview(&source).unwrap()["potential_source_target_gateway_mismatch"].as_array().unwrap().is_empty());
+
+        // An identical gateway or missing/invalid target gateway does not
+        // mean that the networks are compatible. No cutover gets approved.
+        let mut unchanged_gateway = target.clone();
+        unchanged_gateway["networks"][0]["ipam_gateways"][0]["gateway"] = json!("10.41.0.1");
+        unchanged_gateway["networks"][0]["ipam_gateways"][1]["gateway"] = json!("not-an-ip");
+        let no_difference = preview_with_target(&source, &unchanged_gateway).unwrap();
+        assert_eq!(no_difference["potential_source_target_gateway_mismatch"], json!([]));
+        assert_eq!(no_difference["ready_to_apply"], false);
     }
 
     #[test]
